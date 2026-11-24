@@ -24,7 +24,7 @@ Uploads default to private. Unverified Google projects can only post private vid
 until the app passes Google's audit.
 
 ## Status
-- Done: pipeline, dashboard, YouTube upload (untested without your credentials)
+- Done: pipeline, dashboard with per-step progress, webcam+gameplay layout, YouTube upload (untested without your credentials)
 - Next: scheduler, TikTok and Instagram, MCP wrapper
 
 ## Repo map (what is really used)

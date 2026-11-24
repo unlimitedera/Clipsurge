@@ -11,40 +11,84 @@ W, H = 1080, 1920
 _ENV = dict(os.environ, PATH=str(Path(FFMPEG).parent) + os.pathsep + os.environ.get("PATH", ""))
 
 # ---------- face / webcam detection ----------
-def track_faces(video, start, end, step=0.4):
-    """Returns times, x-centers (0-1, nan = none), face_ratio, facecam box or None.
-    facecam box = (cx, cy, w) as fractions when a small, static face sits near a corner."""
-    cap = cv2.VideoCapture(str(video))
+def _cam_from_unions(unions, min_frames=4):
+    """Webcam = faces that keep showing up in the same screen region, anchored to a frame edge.
+    The box is the pooled face extent plus head room and shoulders."""
+    if len(unions) < min_frames:
+        return None
+    u = np.array(unions)
+    rx1, ry1 = np.percentile(u[:, 0], 10), np.percentile(u[:, 1], 10)
+    rx2, ry2 = np.percentile(u[:, 2], 90), np.percentile(u[:, 3], 90)
+    pad = 0.04
+    inside = np.mean((u[:, 0] >= rx1 - pad) & (u[:, 1] >= ry1 - pad) &
+                     (u[:, 2] <= rx2 + pad) & (u[:, 3] <= ry2 + pad))
+    rw, rh = rx2 - rx1, ry2 - ry1
+    bx1, bx2 = max(0.0, rx1 - 0.04), min(1.0, rx2 + 0.05)
+    by1, by2 = max(0.0, ry1 - 0.1), min(1.0, ry2 + 0.3 * rh)
+    if by2 > 0.85: by2 = 1.0
+    if bx1 < 0.08: bx1 = 0.0
+    if bx2 > 0.92: bx2 = 1.0
+    edge = bx1 <= 0.0 or bx2 >= 1.0 or by2 >= 1.0 or by1 <= 0.05
+    if inside >= 0.7 and edge and rw < 0.5 and rh < 0.45:
+        return (float(bx1), float(by1), float(bx2), float(by2))
+    return None
+
+def detect_webcam(video, duration, fw, fh, n=30, prog=None):
+    """Sample frames across the WHOLE video once; a webcam overlay stays put, so pooling
+    many frames finds it far more reliably than looking at one clip."""
     cas = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-    ts, xs, boxes = [], [], []
-    t = start
-    while t < end:
-        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
-        ok, fr = cap.read()
-        if not ok:
+    sw = 640
+    sh = int(round(fh * sw / fw / 2)) * 2
+    unions = []
+    for i in range(n):
+        t = duration * (0.04 + 0.92 * i / max(1, n - 1))
+        r = subprocess.run([FFMPEG, "-v", "error", "-ss", f"{t:.2f}", "-i", str(video), "-frames:v", "1",
+                            "-vf", f"scale={sw}:{sh}", "-f", "rawvideo", "-pix_fmt", "bgr24", "-"],
+                           capture_output=True, env=_ENV)
+        if len(r.stdout) == sw * sh * 3:
+            sm = np.frombuffer(r.stdout, np.uint8).reshape(sh, sw, 3)
+            f = cas.detectMultiScale(cv2.cvtColor(sm, cv2.COLOR_BGR2GRAY), 1.2, 5, minSize=(30, 30))
+            if len(f):
+                unions.append((min(q[0] for q in f) / sw, min(q[1] for q in f) / sh,
+                               max(q[0] + q[2] for q in f) / sw, max(q[1] + q[3] for q in f) / sh))
+        if prog: prog((i + 1) / n)
+    return _cam_from_unions(unions, min_frames=max(5, n // 5))
+
+def track_faces(video, start, end, fw, fh, step=0.4, prog=None):
+    """Returns times, x-centers (0-1, nan = none), face_ratio, webcam box or None.
+    Webcam box = (x1, y1, x2, y2) as fractions: a static face group anchored to a frame edge.
+    Frames come from ffmpeg (fast even for AV1), scaled to 640 wide."""
+    cas = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    sw = 640
+    sh = int(round(fh * sw / fw / 2)) * 2
+    ts, xs, unions = [], [], []
+    p = subprocess.Popen([FFMPEG, "-v", "error", "-ss", str(start), "-t", str(end - start),
+                          "-i", str(video), "-vf", f"fps={1 / step},scale={sw}:{sh}",
+                          "-f", "rawvideo", "-pix_fmt", "bgr24", "-"],
+                         stdout=subprocess.PIPE, env=_ENV)
+    total = max(1, int((end - start) / step))
+    n = 0
+    while True:
+        buf = p.stdout.read(sw * sh * 3)
+        if len(buf) < sw * sh * 3:
             break
-        sm = cv2.resize(fr, (640, int(fr.shape[0] * 640 / fr.shape[1])))
+        sm = np.frombuffer(buf, np.uint8).reshape(sh, sw, 3)
         f = cas.detectMultiScale(cv2.cvtColor(sm, cv2.COLOR_BGR2GRAY), 1.2, 5, minSize=(30, 30))
         if len(f):
             x, y, w, h = max(f, key=lambda r: r[2] * r[3])
-            sw, sh = sm.shape[1], sm.shape[0]
             xs.append((x + w / 2) / sw)
-            boxes.append(((x + w / 2) / sw, (y + h / 2) / sh, w / sw))
+            unions.append((min(r[0] for r in f) / sw, min(r[1] for r in f) / sh,
+                           max(r[0] + r[2] for r in f) / sw, max(r[1] + r[3] for r in f) / sh))
         else:
             xs.append(np.nan)
-        ts.append(t - start)
-        t += step
-    cap.release()
+        ts.append(n * step)
+        n += 1
+        if prog and n % 5 == 0:
+            prog(min(1.0, n / total))
+    p.stdout.close(); p.wait()
     xs = np.array(xs, dtype=float)
     ratio = float(np.mean(~np.isnan(xs))) if len(xs) else 0.0
-    cam = None
-    if len(boxes) >= 4:
-        b = np.array(boxes)
-        cx, cy, w = np.median(b, axis=0)
-        static = b[:, 0].std() < 0.03 and b[:, 1].std() < 0.04
-        corner = (cx < 0.3 or cx > 0.7) and (cy < 0.35 or cy > 0.65)
-        if static and corner and w < 0.25:
-            cam = (float(cx), float(cy), float(w))
+    cam = _cam_from_unions(unions, min_frames=4)
     return np.array(ts), xs, ratio, cam
 
 def smooth_path(ts, xs, fps, n_frames):
@@ -78,13 +122,23 @@ def write_ass(path, words, start, end, style="pop"):
             f"Style: Default,{font},{size},&H00{col},&H00{col},&H00000000,&H80000000,-1,0,0,0,"
             f"100,100,0,0,1,{ol},2,2,60,60,420,1\n\n[Events]\nFormat: Layer,Start,End,Style,"
             "Name,MarginL,MarginR,MarginV,Effect,Text\n")
-    ws = [w for w in words if w["s"] >= start - 0.05 and w["e"] <= end + 0.3]
+    ws = [dict(w) for w in words if w["s"] >= start - 0.05 and w["e"] <= end + 0.3]
+    for i in range(1, len(ws)):               # starts must increase
+        ws[i]["s"] = max(ws[i]["s"], ws[i - 1]["s"] + 0.06)
     lines = []
     for g in range(0, len(ws), 3):
         grp = ws[g:g + 3]
+        nxt = ws[g + 3]["s"] if g + 3 < len(ws) else None
         for k, w in enumerate(grp):
             s = w["s"] - start
-            e = (grp[k + 1]["s"] if k + 1 < len(grp) else w["e"] + 0.15) - start
+            if k + 1 < len(grp):
+                e = grp[k + 1]["s"] - start          # hold until the next word starts
+            else:
+                e = w["e"] + 0.2
+                if nxt is not None:
+                    e = min(e, nxt)                  # never overlap the next group
+                e -= start
+            e = max(e, s + 0.05)
             parts = []
             for m, x in enumerate(grp):
                 txt = x["w"].upper().replace("{", "").replace("}", "")
@@ -121,8 +175,27 @@ def _normalize(raw, final):
     return True
 
 # ---------- render ----------
+def _run_ffmpeg(cmd, cwd, dur, prog, lo=0.0, hi=0.9):
+    """Run ffmpeg with live progress (0-1 mapped into lo..hi)."""
+    cmd = cmd[:1] + ["-progress", "pipe:1", "-nostats"] + cmd[1:]
+    p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         text=True, env=_ENV)
+    tail = []
+    for line in p.stdout:
+        if line.startswith("out_time_us="):
+            try:
+                if prog:
+                    prog(lo + (hi - lo) * min(1.0, int(line.split("=")[1]) / 1e6 / dur))
+            except ValueError:
+                pass
+        elif "=" not in line[:20]:
+            tail.append(line)
+    p.wait()
+    if p.returncode:
+        raise RuntimeError("ffmpeg failed: " + "".join(tail)[-400:])
+
 def render_clip(video, info, tr, clip, out_path, layout="auto", cap_style="pop",
-                captions=True, log=print):
+                captions=True, log=print, prog=None, mode="auto", webcam=None):
     start, end = float(clip["start"]), float(clip["end"])
     dur = end - start
     out_path = Path(out_path)
@@ -134,13 +207,26 @@ def render_clip(video, info, tr, clip, out_path, layout="auto", cap_style="pop",
     fw, fh = info["width"], info["height"]
     ts = xs = cam = None
     used = layout
+    if prog: prog(0.02)
     if layout in ("auto", "follow", "stack"):
-        ts, xs, ratio, cam = track_faces(video, start, end)
-        if layout == "auto":
-            used = "stack" if cam else ("follow" if ratio >= 0.4 else "fit")
-        elif layout == "stack" and not cam:
-            used = "follow" if ratio >= 0.4 else "fit"
-        log(f"clip {clip['id']}: face {ratio:.0%}, webcam {'yes' if cam else 'no'} -> {used}")
+        known = webcam is not None and webcam.get("checked")
+        cam = tuple(webcam["box"]) if known and webcam.get("box") else None
+        ratio = 0.0
+        need_track = layout == "follow" or (not cam and mode != "gaming" and layout in ("auto", "stack"))
+        if need_track or not known:
+            ts, xs, ratio, c2 = track_faces(video, start, end, fw, fh,
+                                            prog=(lambda f: prog and prog(0.02 + 0.06 * f)))
+            if not known:
+                cam = c2
+        if layout == "auto" or (layout == "stack" and not cam):
+            if cam:
+                used = "stack"
+            elif mode == "gaming":
+                used = "fit"        # gameplay is the content: never zoom on faces
+            else:
+                used = "follow" if ratio >= 0.4 else "fit"
+        log(f"clip {clip['id']}: webcam {'yes' if cam else 'no'} -> {used}")
+    if prog: prog(0.08)
 
     if used == "follow":
         cap = cv2.VideoCapture(str(video))
@@ -155,7 +241,7 @@ def render_clip(video, info, tr, clip, out_path, layout="auto", cap_style="pop",
                "-map", "0:v", "-map", "1:a?", "-vf", "format=yuv420p" + ass,
                *_enc(), "-c:a", "aac", "-b:a", "192k", "-shortest",
                "-movflags", "+faststart", raw.name]
-        pr = subprocess.Popen(cmd, stdin=subprocess.PIPE, cwd=work, env=_ENV)
+        pr = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, cwd=work, env=_ENV)
         for i in range(n):
             ok, fr = cap.read()
             if not ok:
@@ -163,25 +249,38 @@ def render_clip(video, info, tr, clip, out_path, layout="auto", cap_style="pop",
             x0 = int(np.clip(path[i] * fw - cw / 2, 0, fw - cw))
             pr.stdin.write(cv2.resize(fr[:, x0:x0 + cw], (W, H),
                                       interpolation=cv2.INTER_AREA).tobytes())
+            if prog and i % 15 == 0:
+                prog(0.08 + 0.82 * i / n)
         pr.stdin.close()
         pr.wait()
         cap.release()
         if pr.returncode:
             raise RuntimeError("ffmpeg failed (follow layout)")
     else:
-        if used == "stack":     # webcam on top, gameplay below
-            cx, cy, cwid = cam
+        if used == "stack":     # webcam on top, gameplay below (gameplay slice avoids the webcam)
+            bx1, by1, bx2, by2 = cam
             top_h = 700
-            cropw = int(min(fw, max(cwid * fw * 2.6, 360)))
-            croph = int(min(fh, cropw * top_h / W))
-            cropw = int(min(fw, croph * W / top_h))
-            x0 = int(np.clip(cx * fw - cropw / 2, 0, fw - cropw))
-            y0 = int(np.clip(cy * fh - croph / 2, 0, fh - croph))
+            cropw = (bx2 - bx1) * fw
+            croph = cropw * top_h / W
+            if croph < (by2 - by1) * fh:
+                croph = (by2 - by1) * fh
+                cropw = croph * W / top_h
+            croph = int(min(fh, croph))
+            cropw = int(min(fw, croph * W / top_h, max(cropw, 1)))
+            cropw = max(cropw, 2)
+            x0 = int(np.clip((bx1 + bx2) / 2 * fw - cropw / 2, 0, fw - cropw))
+            y0 = int(np.clip((by1 + by2) / 2 * fh - croph / 2, 0, fh - croph))
             bot_h = H - top_h
             gw = int(min(fw, fh * W / bot_h))
             gx = (fw - gw) // 2
+            if bx2 <= 0.5:
+                gx = int(np.clip(max(gx, bx2 * fw), 0, fw - gw))
+            elif bx1 >= 0.5:
+                gx = int(np.clip(min(gx, bx1 * fw - gw), 0, fw - gw))
             fc = (f"[0:v]split[a][b];[a]crop={cropw}:{croph}:{x0}:{y0},scale={W}:{top_h}[t];"
                   f"[b]crop={gw}:{fh}:{gx}:0,scale={W}:{bot_h}[g];[t][g]vstack,format=yuv420p{ass}[v]")
+        elif used == "game":    # gameplay only, centered 9:16 crop
+            fc = f"[0:v]crop=ih*9/16:ih,scale={W}:{H},format=yuv420p{ass}[v]"
         else:                   # fit: full frame over a blurred copy
             fc = (f"[0:v]split[a][b];[a]scale={W}:{H}:force_original_aspect_ratio=increase,"
                   f"crop={W}:{H},boxblur=30:5[bg];[b]scale={W}:-2[fg];"
@@ -189,11 +288,11 @@ def render_clip(video, info, tr, clip, out_path, layout="auto", cap_style="pop",
         cmd = [FFMPEG, "-y", "-v", "error", "-ss", str(start), "-t", str(dur), "-i", str(video),
                "-filter_complex", fc, "-map", "[v]", "-map", "0:a?", *_enc(),
                "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", raw.name]
-        r = subprocess.run(cmd, cwd=work, capture_output=True, text=True, env=_ENV)
-        if r.returncode:
-            raise RuntimeError("ffmpeg failed: " + r.stderr[-400:])
+        _run_ffmpeg(cmd, work, dur, prog, 0.08, 0.9)
+    if prog: prog(0.93)
     ok = _normalize(raw, out_path)
     raw.unlink(missing_ok=True)
+    if prog: prog(1.0)
     if not ok:
         log(f"clip {clip['id']}: loudness step skipped")
     return used

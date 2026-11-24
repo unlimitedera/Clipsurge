@@ -1,17 +1,21 @@
 # Copyright (c) 2026 unlimitedera. All Rights Reserved.
 """Cliptastic web server: python -m cliptastic.server"""
-import json, shutil
+import datetime, json, shutil, threading
 from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-import threading, time, datetime
 from . import jobs, llm, youtube, extras
 from .config import JOBS, WEB, DATA
 
 app = FastAPI(title="Cliptastic")
 threading.Thread(target=extras.sched_loop, daemon=True).start()
+
+def _clip(job, cid):
+    c = next((c for c in job["clips"] if c["id"] == cid), None)
+    if not c: raise HTTPException(404)
+    return c
 
 @app.get("/api/status")
 def status():
@@ -19,11 +23,11 @@ def status():
 
 @app.get("/api/jobs")
 def list_jobs():
-    return jobs.list_jobs()
+    return [{k: j[k] for k in ("id", "title", "state")} for j in jobs.list_jobs()]
 
 @app.get("/api/jobs/{jid}")
 def get_job(jid: str):
-    try: return jobs.load(jid)
+    try: return jobs.public(jobs.load(jid))
     except FileNotFoundError: raise HTTPException(404)
 
 @app.post("/api/jobs")
@@ -50,44 +54,27 @@ class ClipEdit(BaseModel):
 
 @app.post("/api/jobs/{jid}/clips/{cid}")
 def edit_clip(jid: str, cid: int, e: ClipEdit, render: bool = False):
-    job = jobs.load(jid)
-    c = next((c for c in job["clips"] if c["id"] == cid), None)
-    if not c: raise HTTPException(404)
-    for k, v in e.model_dump(exclude_none=True).items(): c[k] = v
-    if c["end"] - c["start"] < 3: raise HTTPException(400, "clip too short")
-    jobs.save(job)
-    if render and c["approved"]:
-        c["status"] = "queued"; jobs.save(job); jobs.rerender(jid, [cid])
-    return c
+    data = e.model_dump(exclude_none=True)
+    def f(j):
+        c = _clip(j, cid); c.update(data)
+        if c["end"] - c["start"] < 3: raise HTTPException(400, "clip too short")
+        if render and c["approved"] and c["status"] not in ("queued", "rendering"):
+            c["status"] = "queued"
+    job = jobs.update(jid, f)
+    if render and _clip(job, cid)["status"] == "queued": jobs.rerender(jid, [cid])
+    return _clip(job, cid)
 
 @app.post("/api/jobs/{jid}/render")
 def render_all(jid: str):
-    job = jobs.load(jid)
-    ids = [c["id"] for c in job["clips"] if c["approved"] and c["status"] != "done"]
-    for c in job["clips"]:
-        if c["id"] in ids: c["status"] = "queued"
-    jobs.save(job); jobs.rerender(jid, ids)
+    """Render only clips that never rendered or failed. Never touches finished or running ones."""
+    ids = []
+    def f(j):
+        for c in j["clips"]:
+            if c["approved"] and c["status"] in ("pending", "error"):
+                c["status"] = "queued"; ids.append(c["id"])
+    jobs.update(jid, f)
+    if ids: jobs.rerender(jid, ids)
     return {"queued": ids}
-
-@app.get("/api/youtube")
-def yt_state(): return youtube.state()
-
-@app.post("/api/youtube/connect")
-def yt_connect():
-    try: youtube.connect()
-    except Exception as e: raise HTTPException(400, str(e))
-    return youtube.state()
-
-@app.post("/api/jobs/{jid}/clips/{cid}/upload")
-def upload_clip(jid: str, cid: int, privacy: str = "private"):
-    job = jobs.load(jid)
-    c = next((c for c in job["clips"] if c["id"] == cid and c.get("file")), None)
-    if not c: raise HTTPException(404, "render the clip first")
-    try:
-        c["youtube"] = youtube.upload(JOBS / jid / c["file"], c["title"],
-                                      " ".join(c.get("tags", [])), c.get("tags"), privacy)
-    except Exception as e: raise HTTPException(400, f"{type(e).__name__}: {e}")
-    jobs.save(job); return c
 
 class NewClip(BaseModel):
     start: float
@@ -103,27 +90,49 @@ def search(jid: str, q: str):
 
 @app.post("/api/jobs/{jid}/clips")
 def add_clip(jid: str, n: NewClip):
-    job = jobs.load(jid)
-    cid = max([c["id"] for c in job["clips"]] + [0]) + 1
-    job["clips"].append({"id": cid, "start": n.start, "end": n.end, "score": 0, "title": n.title,
-                         "tags": [], "text": "", "approved": True, "status": "queued"})
-    jobs.save(job); jobs.rerender(jid, [cid]); return {"id": cid}
+    cid = []
+    def f(j):
+        i = max([c["id"] for c in j["clips"]] + [0]) + 1; cid.append(i)
+        j["clips"].append({"id": i, "start": n.start, "end": n.end, "score": 0, "title": n.title,
+                           "tags": [], "text": "", "approved": True, "status": "queued"})
+    jobs.update(jid, f); jobs.rerender(jid, cid); return {"id": cid[0]}
 
 class Sched(BaseModel):
-    when: str   # local time, e.g. 2026-11-25T18:00
+    when: str
 
 @app.post("/api/jobs/{jid}/clips/{cid}/schedule")
 def schedule(jid: str, cid: int, s: Sched):
-    ts = datetime.datetime.fromisoformat(s.when).timestamp()
-    extras.sched_add(jid, cid, ts); return extras.sched_list()
+    extras.sched_add(jid, cid, datetime.datetime.fromisoformat(s.when).timestamp())
+    return extras.sched_list()
 
 @app.get("/api/schedule")
 def sched(): return extras.sched_list()
 
+@app.get("/api/youtube")
+def yt_state(): return youtube.state()
+
+@app.post("/api/youtube/connect")
+def yt_connect():
+    try: youtube.connect()
+    except Exception as e: raise HTTPException(400, str(e))
+    return youtube.state()
+
+@app.post("/api/jobs/{jid}/clips/{cid}/upload")
+def upload_clip(jid: str, cid: int, privacy: str = "private"):
+    c = _clip(jobs.load(jid), cid)
+    if not c.get("file"): raise HTTPException(404, "render the clip first")
+    try: url = youtube.upload(JOBS / jid / c["file"], c["title"], " ".join(c.get("tags", [])),
+                              c.get("tags"), privacy)
+    except Exception as e: raise HTTPException(400, f"{type(e).__name__}: {e}")
+    jobs.update(jid, lambda j: _clip(j, cid).update(youtube=url))
+    return {"youtube": url}
+
 @app.post("/api/obs/start")
 def obs_start():
     try: extras.obs_start()
-    except Exception as e: raise HTTPException(400, f"OBS not reachable ({type(e).__name__}). Open OBS, enable WebSocket server (Tools > WebSocket Server Settings).")
+    except Exception as e:
+        raise HTTPException(400, f"OBS not reachable ({type(e).__name__}). Open OBS and enable "
+                                 "Tools > WebSocket Server Settings.")
     return {"recording": True}
 
 @app.post("/api/obs/stop")
@@ -136,7 +145,7 @@ def obs_stop(mode: str = "auto", count: int = 5):
 def files(jid: str, path: str):
     p = (JOBS / jid / path).resolve()
     if JOBS.resolve() not in p.parents or not p.is_file(): raise HTTPException(404)
-    return FileResponse(p)
+    return FileResponse(p)   # supports range requests, so seeking/playback is stable
 
 app.mount("/", StaticFiles(directory=WEB, html=True), name="web")
 

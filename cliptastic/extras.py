@@ -38,7 +38,7 @@ OCR_HITS = re.compile(r"(kill|elimin|victory|winner|you win|ace|clutch|headshot|
                       r"defeat|wasted|level up|champion|double|triple|quad|penta|mvp|"
                       r"round won|match point|first blood|boss)", re.I)
 
-def ocr_signal(video, duration, log, step=2.0):
+def ocr_signal(video, duration, log, step=2.0, prog=None):
     try:
         import cv2
         from rapidocr_onnxruntime import RapidOCR
@@ -59,6 +59,7 @@ def ocr_signal(video, duration, log, step=2.0):
             sig[int(t)] += 1
             hits += 1
         t += step
+        if prog: prog(t / duration)
     cap.release()
     log(f"On-screen text hits: {hits}")
     return np.convolve(sig, np.ones(7) / 7 * 3, "same") if hits else None
@@ -180,9 +181,12 @@ def sched_loop():
                     try:
                         job = jobs.load(it["job"])
                         c = next(c for c in job["clips"] if c["id"] == it["clip"])
-                        c["youtube"] = youtube.upload(JOBS / it["job"] / c["file"], c["title"],
-                                                      " ".join(c.get("tags", [])), c.get("tags"), "private")
-                        jobs.save(job); it["state"] = "done"; it["url"] = c["youtube"]
+                        url = youtube.upload(JOBS / it["job"] / c["file"], c["title"],
+                                             " ".join(c.get("tags", [])), c.get("tags"), "private")
+                        def setu(j, url=url, cid=it["clip"]):
+                            next(x for x in j["clips"] if x["id"] == cid)["youtube"] = url
+                        jobs.update(it["job"], setu)
+                        it["state"] = "done"; it["url"] = url
                     except Exception as e:
                         it["state"] = "error"; it["error"] = f"{type(e).__name__}: {e}"
                     changed = True

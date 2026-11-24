@@ -11,26 +11,31 @@ header{display:flex;justify-content:space-between;align-items:center;padding:14p
 .card{background:var(--sf);border:1px solid var(--ln);border-radius:14px;padding:14px;margin-bottom:14px}
 .drop{display:flex;gap:10px;flex-wrap:wrap;align-items:center;border:2px dashed var(--ln);transition:.15s}
 .drop.over{border-color:var(--lime);background:#1b2212}
-input[type=text],select,input[type=number]{background:#0f141b;border:1px solid var(--ln);color:var(--tx);border-radius:8px;padding:8px 10px;font:inherit}
+input[type=text],select,input[type=number],input[type=datetime-local]{background:#0f141b;border:1px solid var(--ln);color:var(--tx);border-radius:8px;padding:8px 10px;font:inherit}
 input[type=text]{flex:1;min-width:260px}input[type=number]{width:64px}
-button{background:var(--lime);color:#0b0f00;font-weight:800;border:0;border-radius:10px;padding:9px 16px;cursor:pointer;font:inherit;font-weight:800}
+button{background:var(--lime);color:#0b0f00;border:0;border-radius:10px;padding:9px 16px;cursor:pointer;font:inherit;font-weight:800}
 button.g{background:transparent;color:var(--tx);border:1px solid var(--ln);font-weight:600}button:disabled{opacity:.4}
 .chip{display:inline-block;border:1px solid var(--ln);border-radius:99px;padding:2px 9px;color:var(--mu);font-size:11px;margin-right:4px}
-.layout{display:grid;grid-template-columns:170px 1fr;gap:14px}
-.step{display:flex;gap:8px;align-items:center;margin:9px 0;color:var(--mu)}
-.step i{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--ln);display:grid;place-items:center;font-style:normal;font-size:10px}
-.step.d{color:var(--tx)}.step.d i{background:var(--lime);border-color:var(--lime);color:#111}
-.step.a{color:var(--lime)}.step.a i{border-color:var(--lime);box-shadow:0 0 10px var(--lime)}
-.bar{height:6px;background:var(--ln);border-radius:4px;overflow:hidden;margin:8px 0}.bar b{display:block;height:100%;background:linear-gradient(90deg,var(--lime),var(--vio));transition:width .4s}
+.layout{display:grid;grid-template-columns:220px 1fr;gap:14px}
+.step{margin:11px 0}.step .t{display:flex;justify-content:space-between;color:var(--mu)}
+.step.d .t{color:var(--tx)}.step.a .t{color:var(--lime);font-weight:700}
+.bar{height:6px;background:var(--ln);border-radius:4px;overflow:hidden;margin-top:5px}
+.bar b{display:block;height:100%;background:linear-gradient(90deg,var(--lime),var(--vio));transition:width .5s linear}
+.step.d .bar b{background:var(--lime)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
 .clip{background:#10151c;border:1px solid var(--ln);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px}
 .clip.off{opacity:.5}
-.phone{aspect-ratio:9/16;background:#000;border-radius:14px;border:3px solid #2b3340;overflow:hidden;display:grid;place-items:center;color:var(--mu)}
+.phone{aspect-ratio:9/16;background:#000;border-radius:14px;border:3px solid #2b3340;overflow:hidden;position:relative;display:grid;place-items:center;color:var(--mu)}
 .phone video{width:100%;height:100%;object-fit:cover}
-.score{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--lime);color:#111;font-weight:900}
+.ph{position:absolute;inset:0;display:grid;place-content:center;text-align:center;gap:8px;padding:20px;background:#000}
+.ph .bar{width:140px;margin:0 auto}
+.badge{position:absolute;left:8px;right:8px;top:8px;background:#000c;border-radius:8px;padding:5px 8px;font-size:11px;color:var(--lime);pointer-events:none}
+.badge .bar{margin-top:4px}
+.hide{display:none!important}
+.score{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--lime);color:#111;font-weight:900;flex:none}
 .row{display:flex;gap:8px;align-items:center;justify-content:space-between}
 .row input[type=number]{width:72px;padding:5px}
-.title{font-weight:700;background:transparent;border:1px solid transparent;color:var(--tx);width:100%;padding:3px;border-radius:6px}
+.title{font-weight:700;background:transparent;border:1px solid transparent;color:var(--tx);width:100%;padding:3px;border-radius:6px;font:inherit;font-weight:700}
 .title:focus{border-color:var(--ln);outline:0}
 .log{font:11px ui-monospace,Consolas,monospace;color:var(--mu);max-height:70px;overflow:auto}
 .err{color:var(--red)}a{color:var(--lime)}
@@ -44,83 +49,154 @@ button.g{background:transparent;color:var(--tx);border:1px solid var(--ln);font-
 <div class="card drop" id="drop">
  <input type="text" id="url" placeholder="Paste a link (YouTube, Twitch, ...) or drop a video file here">
  <input type="file" id="file" accept="video/*" style="display:none">
- <button class="g" onclick="file.click()" id="pick">Choose file</button>
- <select id="mode"><option value="auto">Auto</option><option value="podcast">Podcast</option><option value="gaming">Gaming</option><option value="tutorial">Tutorial</option></select>
+ <button class="g" onclick="file.click()">Choose file</button>
+ <select id="mode"><option value="auto">Auto</option><option value="gaming">Gaming</option><option value="podcast">Podcast</option><option value="tutorial">Tutorial</option></select>
  <label class="mu">Clips <input type="number" id="count" value="5" min="1" max="20"></label>
  <label class="mu">Length <input type="number" id="minlen" value="20"> - <input type="number" id="maxlen" value="55"> s</label>
- <select id="layout"><option value="auto">Crop: auto</option><option value="follow">Follow face</option><option value="stack">Webcam + gameplay</option><option value="fit">Fit + blur</option></select>
+ <select id="layout"><option value="auto">Crop: auto</option><option value="stack">Webcam + gameplay</option><option value="game">Gameplay only (center)</option><option value="fit">Whole screen + blur</option><option value="follow">Follow face (talking heads)</option></select>
  <select id="cap"><option value="pop">Captions: Pop</option><option value="clean">Clean</option><option value="fire">Fire</option><option value="off">Off</option></select>
  <button class="g" id="rec" onclick="rec()">&#9679; Record (OBS)</button>
  <button id="go" onclick="start()">Make clips &#9656;</button>
 </div>
 <div class="jobs" id="jobs"></div>
-<div id="view"></div>
+<div id="view" class="hide">
+ <div class="layout">
+  <div class="card"><b>Pipeline</b><div id="pipe"></div><div class="mu" id="info" style="margin-top:10px"></div></div>
+  <div>
+   <div class="card"><b id="jt"></b> <span id="jchips"></span><div class="err" id="jerr"></div><div class="log" id="jlog"></div>
+    <div style="margin-top:8px"><button id="rbtn" class="hide" onclick="renderPending()">Render pending clips</button></div></div>
+   <div class="card"><div class="row"><input type="text" id="q" placeholder='Find a moment: "the funny story about the server"' onkeydown="if(event.key=='Enter')search()"><button class="g" onclick="search()">Search</button>
+    <span id="tl" class="hide"><a id="otio" download>Timeline (.otio)</a> &nbsp; <a id="edl" download>EDL</a></span></div><div id="hits"></div></div>
+   <div class="grid" id="grid"></div>
+  </div>
+ </div>
+</div>
 </main>
 <script>
-const $=id=>document.getElementById(id);let cur=null,timer=null;
+const $=id=>document.getElementById(id);let cur=null,timer=null,lastJob=null;
 const STAGES=["Get video","Transcribe","Find moments","Crop + captions","Export"];
 const fmt=s=>{s=Math.round(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 $("file").onchange=()=>{if(file.files[0])$("url").value="File: "+file.files[0].name};
 const d=$("drop");["dragover","dragenter"].forEach(e=>d.addEventListener(e,x=>{x.preventDefault();d.classList.add("over")}));
 ["dragleave","drop"].forEach(e=>d.addEventListener(e,x=>{x.preventDefault();d.classList.remove("over")}));
 d.addEventListener("drop",x=>{if(x.dataTransfer.files[0]){file.files=x.dataTransfer.files;file.onchange()}});
-let recording=false;
-async function rec(){
- const r=await fetch(recording?"/api/obs/stop":"/api/obs/start",{method:"POST"});
- if(!r.ok){alert((await r.json()).detail);return}
- recording=!recording;$("rec").innerHTML=recording?"&#9632; Stop + clip":"&#9679; Record (OBS)";
- if(!recording){cur=(await r.json()).id;poll()}}
-async function search(){
- const q=$("q").value.trim();if(!q)return;
- const r=await (await fetch(`/api/jobs/${cur}/search?q=`+encodeURIComponent(q))).json();
- $("hits").innerHTML=r.length?r.map(h=>`<div class="row" style="margin:6px 0"><span class="mu">${fmt(h.start)}-${fmt(h.end)}</span><span style="flex:1;margin:0 10px">${h.text.slice(0,120)}</span><button class="g" onclick="addClip(${h.start},${h.end},'${q.replace(/'/g,"")}')">Make clip</button></div>`).join(""):'<span class="mu">No matches</span>'}
-async function addClip(s,e,t){await fetch(`/api/jobs/${cur}/clips`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({start:s,end:e,title:t})});poll()}
-async function sched(id){
- const w=$("w"+id).value;if(!w){alert("Pick a date and time");return}
- const r=await fetch(`/api/jobs/${cur}/clips/${id}/schedule`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({when:w})});
- alert(r.ok?"Scheduled for YouTube (private). Keep Cliptastic running.":"Failed")}
+const api=(u,o)=>fetch(u,o);
+const post=(u,b)=>api(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});
+
 async function start(){
  const f=new FormData();const u=$("url").value.trim();
  if(file.files[0]&&u.startsWith("File:"))f.append("file",file.files[0]);else f.append("url",u);
  for(const [k,v] of [["mode",$("mode").value],["count",$("count").value],["minlen",$("minlen").value],["maxlen",$("maxlen").value],["layout",$("layout").value],["captions",$("cap").value]])f.append(k,v);
- $("go").disabled=true;const r=await fetch("/api/jobs",{method:"POST",body:f});$("go").disabled=false;
+ $("go").disabled=true;const r=await api("/api/jobs",{method:"POST",body:f});$("go").disabled=false;
  if(!r.ok){alert((await r.json()).detail);return}
- const j=await r.json();cur=j.id;refreshJobs();poll()}
+ select((await r.json()).id)}
+function select(id){cur=id;$("grid").innerHTML="";$("hits").innerHTML="";$("view").classList.remove("hide");poll()}
 async function refreshJobs(){
- const js=await (await fetch("/api/jobs")).json();
- $("jobs").innerHTML=js.map(j=>`<span class="chip ${j.id==cur?"on":""}" onclick="cur='${j.id}';poll()">${(j.title||j.id).slice(0,34)} · ${j.state}</span>`).join("")}
-async function poll(){clearTimeout(timer);if(!cur)return;
- const j=await (await fetch("/api/jobs/"+cur)).json();draw(j);refreshJobs();
- const busy=j.state=="running"||j.state=="queued"||j.clips.some(c=>["queued","rendering"].includes(c.status));
- if(busy)timer=setTimeout(poll,2000)}
-function draw(j){
- const steps=STAGES.map((s,i)=>{const c=j.state=="done"||i<j.stage?"d":(i==j.stage&&j.state=="running"?"a":"");return `<div class="step ${c}"><i>${c=="d"?"&#10003;":i+1}</i>${s}</div>`}).join("");
- const clips=j.clips.map(c=>`<div class="clip ${c.approved?"":"off"}">
-  <div class="phone">${c.status=="done"?`<video src="/files/${j.id}/${c.file}?t=${Date.now()}" controls loop playsinline></video>`:`<span>${c.status=="error"?"render failed":c.status}...</span>`}</div>
-  <div class="row"><input class="title" value="${(c.title||"").replace(/"/g,"&quot;")}" onchange="edit(${c.id},{title:this.value})"><span class="score">${c.score}</span></div>
-  <div class="mu">${(c.tags||[]).join(" ")}</div>
-  <div class="row"><label class="mu">Start <input type="number" step="0.5" value="${c.start}" id="s${c.id}"></label><label class="mu">End <input type="number" step="0.5" value="${c.end}" id="e${c.id}"></label></div>
-  <div class="row"><label class="mu"><input type="checkbox" ${c.approved?"checked":""} onchange="edit(${c.id},{approved:this.checked})"> Keep</label>
-   <button class="g" onclick="edit(${c.id},{start:+$('s${c.id}').value,end:+$('e${c.id}').value},true)">Re-render</button>
-   ${c.status=="done"?(c.youtube?`<a href="${c.youtube}" target="_blank">On YouTube</a>`:`<button class="g" onclick="up(${c.id})">Upload to YouTube</button>`):""}
-   ${c.status=="done"?`<a href="/files/${j.id}/${c.file}" download>MP4</a> <a href="/files/${j.id}/${c.file.replace(".mp4",".srt")}" download>SRT</a> <a href="/files/${j.id}/clips/clip${c.id}.ass" download>ASS</a>`:""}</div>
-  ${c.status=="done"&&!c.youtube?`<div class="row"><input type="datetime-local" id="w${c.id}" style="flex:1"><button class="g" onclick="sched(${c.id})">Schedule</button></div>`:""}</div>`).join("");
- $("view").innerHTML=`<div class="layout"><div class="card"><b>Pipeline</b>${steps}<div class="bar"><b style="width:${j.progress}%"></b></div>
-  <div class="mu">${j.info?fmt(j.info.duration)+" · "+j.info.width+"x"+j.info.height:""}</div></div>
-  <div><div class="card"><b>${j.title||""}</b> <span class="chip">${j.settings.mode}</span><span class="chip">${j.clips.length} moments</span>
-  ${j.error?`<div class="err">${j.error}</div>`:""}<div class="log">${(j.log||[]).slice(-6).join("<br>")}</div>
-  ${j.clips.length?`<div style="margin-top:8px"><button onclick="fetch('/api/jobs/${j.id}/render',{method:'POST'}).then(poll)">Render kept clips</button></div>`:""}</div>
-  <div class="card"><div class="row"><input type="text" id="q" placeholder="Find a moment: &quot;the funny story about the server&quot;" onkeydown="if(event.key=='Enter')search()" style="flex:1"><button class="g" onclick="search()">Search</button> ${j.state=="done"?`<a href="/files/${j.id}/timeline.otio" download>Timeline (.otio)</a> <a href="/files/${j.id}/timeline.edl" download>EDL</a>`:""}</div><div id="hits"></div></div>
-  <div class="grid">${clips}</div></div></div>`}
-async function up(id){
- const s=await (await fetch("/api/youtube")).json();
- if(!s.client_file){alert("Add your Google OAuth file at F:/Cliptastic/secrets/client_secret.json first (see README).");return}
- if(!s.connected){const r=await fetch("/api/youtube/connect",{method:"POST"});if(!r.ok){alert((await r.json()).detail);return}}
- const r=await fetch(`/api/jobs/${cur}/clips/${id}/upload?privacy=private`,{method:"POST"});
- if(!r.ok)alert((await r.json()).detail);poll()}
+ const js=await (await api("/api/jobs")).json();
+ $("jobs").innerHTML=js.map(j=>`<span class="chip ${j.id==cur?"on":""}" onclick="select('${j.id}')">${esc((j.title||j.id).slice(0,34))} · ${j.state}</span>`).join("")}
+
+async function poll(){
+ clearTimeout(timer);if(!cur)return;
+ let j;try{j=await (await api("/api/jobs/"+cur)).json()}catch(e){timer=setTimeout(poll,2000);return}
+ if(j.id!==cur)return;
+ paint(j);
+ const busy=["running","queued"].includes(j.state)||j.clips.some(c=>["queued","rendering"].includes(c.status));
+ timer=setTimeout(poll,busy?1000:0);if(!busy){clearTimeout(timer);refreshJobs()}
+}
+
+function paint(j){
+ // pipeline panel: per-step progress bars
+ const done=j.state=="done";
+ const pipe=STAGES.map((s,i)=>{
+  const st=done||i<j.stage?"d":(i==j.stage&&j.state=="running"?"a":"");
+  const pct=st=="d"?100:(st=="a"?Math.round(j.sp*100):0);
+  const note=st=="a"&&j.note?` <span class="mu">${esc(j.note)}</span>`:"";
+  return `<div class="step ${st}"><div class="t"><span>${i+1}. ${s}${note}</span><span>${st?pct+"%":""}</span></div><div class="bar"><b style="width:${pct}%"></b></div></div>`}).join("");
+ setHTML("pipe",pipe);
+ setHTML("info",j.info?fmt(j.info.duration)+" · "+j.info.width+"x"+j.info.height:"");
+ $("jt").textContent=j.title||"";
+ setHTML("jchips",`<span class="chip">${j.settings.mode}</span><span class="chip">${j.clips.length} moments</span><span class="chip">${j.state}</span>`);
+ setHTML("jerr",j.error?esc(j.error):"");
+ setHTML("jlog",(j.log||[]).slice(-6).map(esc).join("<br>"));
+ $("rbtn").classList.toggle("hide",!j.clips.some(c=>c.approved&&["pending","error"].includes(c.status)));
+ const hasTl=j.clips.some(c=>c.status=="done");
+ $("tl").classList.toggle("hide",!hasTl);$("otio").href=`/files/${j.id}/timeline.otio`;$("edl").href=`/files/${j.id}/timeline.edl`;
+ // clips: keyed, updated in place (videos are never recreated unless the render changed)
+ const grid=$("grid");
+ j.clips.forEach(c=>{
+  let el=document.getElementById("clip"+c.id);
+  if(!el){el=makeClip(c);grid.appendChild(el)}
+  paintClip(el,c,j)});
+ refreshJobs();
+}
+function setHTML(id,h){const e=$(id);if(e.dataset.h!==h){e.dataset.h=h;e.innerHTML=h}}
+function makeClip(c){
+ const el=document.createElement("div");el.className="clip";el.id="clip"+c.id;
+ el.innerHTML=`<div class="phone"><div class="vslot"></div>
+  <div class="ph"><span class="pt">queued</span><div class="bar"><b style="width:0%"></b></div></div>
+  <div class="badge hide"><span></span><div class="bar"><b style="width:0%"></b></div></div></div>
+  <div class="row"><input class="title" data-k="title"><span class="score"></span></div>
+  <div class="mu tags"></div>
+  <div class="row"><label class="mu">Start <input type="number" step="0.5" data-k="start"></label><label class="mu">End <input type="number" step="0.5" data-k="end"></label></div>
+  <div class="row"><label class="mu"><input type="checkbox" class="keep"> Keep</label><button class="g rr">Re-render</button><span class="links"></span></div>
+  <div class="row sch hide"><input type="datetime-local" class="when" style="flex:1"><button class="g sb">Schedule</button></div>`;
+ const id=c.id;
+ el.querySelector('[data-k=title]').onchange=e=>edit(id,{title:e.target.value});
+ el.querySelector('.keep').onchange=e=>edit(id,{approved:e.target.checked});
+ el.querySelector('.rr').onclick=()=>edit(id,{start:+el.querySelector('[data-k=start]').value,end:+el.querySelector('[data-k=end]').value},true);
+ el.querySelector('.sb').onclick=()=>sched(id);
+ return el}
+function paintClip(el,c,j){
+ el.classList.toggle("off",!c.approved);
+ const setIn=(sel,val)=>{const i=el.querySelector(sel);if(document.activeElement!==i&&i.dataset.srv!==String(val)){i.value=val;i.dataset.srv=String(val)}};
+ setIn('[data-k=title]',c.title||"");setIn('[data-k=start]',c.start);setIn('[data-k=end]',c.end);
+ el.querySelector(".keep").checked=c.approved;
+ el.querySelector(".score").textContent=c.score||"-";
+ el.querySelector(".tags").textContent=(c.tags||[]).join(" ");
+ const pct=Math.round(((j.cprog||{})[c.id]||0)*100);
+ const slot=el.querySelector(".vslot"),ph=el.querySelector(".ph"),bd=el.querySelector(".badge");
+ const hasVideo=!!c.file;
+ if(hasVideo&&slot.dataset.rev!==String(c.rev)){   // only a NEW render swaps the player
+  slot.dataset.rev=String(c.rev);
+  slot.innerHTML=`<video src="/files/${j.id}/${c.file}?v=${c.rev}" controls loop playsinline preload="metadata" style="width:100%;height:100%;object-fit:cover"></video>`;}
+ const busy=["queued","rendering"].includes(c.status);
+ ph.classList.toggle("hide",hasVideo);
+ if(!hasVideo){ph.querySelector(".pt").textContent=c.status=="error"?"render failed":(c.status=="rendering"?"Rendering "+pct+"%":(c.status=="queued"?"Waiting in queue":c.status));
+  ph.querySelector("b").style.width=(c.status=="rendering"?pct:0)+"%"}
+ bd.classList.toggle("hide",!(hasVideo&&busy));
+ if(hasVideo&&busy){bd.querySelector("span").textContent=c.status=="rendering"?"Re-rendering "+pct+"%":"Queued";bd.querySelector("b").style.width=pct+"%"}
+ const L=el.querySelector(".links");
+ const lh=c.status=="done"&&c.file?(c.youtube?`<a href="${c.youtube}" target="_blank">YouTube</a> `:`<a href="#" class="yt">YouTube</a> `)+`<a href="/files/${j.id}/${c.file}" download>MP4</a> <a href="/files/${j.id}/${c.file.replace(".mp4",".srt")}" download>SRT</a> <a href="/files/${j.id}/clips/clip${c.id}.ass" download>ASS</a>`:"";
+ if(L.dataset.h!==lh){L.dataset.h=lh;L.innerHTML=lh;const y=L.querySelector(".yt");if(y)y.onclick=e=>{e.preventDefault();up(c.id)}}
+ el.querySelector(".sch").classList.toggle("hide",!(c.status=="done"&&!c.youtube));
+ el.querySelector(".rr").disabled=busy;
+}
 async function edit(id,body,render){
- const r=await fetch(`/api/jobs/${cur}/clips/${id}?render=${render?"true":"false"}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+ const r=await post(`/api/jobs/${cur}/clips/${id}?render=${render?"true":"false"}`,body);
  if(!r.ok)alert((await r.json()).detail);poll()}
-fetch("/api/status").then(r=>r.json()).then(s=>$("st").textContent=s.llm?"Local AI: "+s.llm:"Local AI: off (using audio + speech scoring)");
+async function renderPending(){await api(`/api/jobs/${cur}/render`,{method:"POST"});poll()}
+async function search(){
+ const q=$("q").value.trim();if(!q||!cur)return;
+ const r=await (await api(`/api/jobs/${cur}/search?q=`+encodeURIComponent(q))).json();
+ $("hits").innerHTML=r.length?r.map(h=>`<div class="row" style="margin:6px 0"><span class="mu">${fmt(h.start)}-${fmt(h.end)}</span><span style="flex:1;margin:0 10px">${esc(h.text.slice(0,120))}</span><button class="g" onclick="addClip(${h.start},${h.end},this.dataset.q)" data-q="${esc(q)}">Make clip</button></div>`).join(""):'<span class="mu">No matches</span>'}
+async function addClip(s,e,t){await post(`/api/jobs/${cur}/clips`,{start:s,end:e,title:t});poll()}
+async function sched(id){
+ const w=document.querySelector(`#clip${id} .when`).value;if(!w){alert("Pick a date and time");return}
+ const r=await post(`/api/jobs/${cur}/clips/${id}/schedule`,{when:w});
+ alert(r.ok?"Scheduled for YouTube (private). Keep Cliptastic running.":"Failed")}
+async function up(id){
+ const s=await (await api("/api/youtube")).json();
+ if(!s.client_file){alert("Add your Google OAuth file at F:/Cliptastic/secrets/client_secret.json first (see README).");return}
+ if(!s.connected){const r=await api("/api/youtube/connect",{method:"POST"});if(!r.ok){alert((await r.json()).detail);return}}
+ const r=await api(`/api/jobs/${cur}/clips/${id}/upload?privacy=private`,{method:"POST"});
+ if(!r.ok)alert((await r.json()).detail);poll()}
+let recording=false;
+async function rec(){
+ const r=await api(recording?"/api/obs/stop":"/api/obs/start",{method:"POST"});
+ if(!r.ok){alert((await r.json()).detail);return}
+ recording=!recording;$("rec").innerHTML=recording?"&#9632; Stop + clip":"&#9679; Record (OBS)";
+ if(!recording)select((await r.json()).id)}
+api("/api/status").then(r=>r.json()).then(s=>$("st").textContent=s.llm?"Local AI: "+s.llm:"Local AI: off (using audio + speech scoring)");
 refreshJobs();
 </script></body></html>

@@ -16,7 +16,7 @@ def probe(path):
     return {"duration": float(j["format"]["duration"]),
             "width": int(v["width"]), "height": int(v["height"])}
 
-def ingest(src, jobdir, log):
+def ingest(src, jobdir, log, prog=None):
     jobdir = Path(jobdir)
     title = None
     if re.match(r"^https?://", src):
@@ -25,7 +25,9 @@ def ingest(src, jobdir, log):
         opts = {"outtmpl": str(jobdir / "source.%(ext)s"), "noplaylist": True,
                 "format": "bv*[height<=1080]+ba/b[height<=1080]/b",
                 "merge_output_format": "mp4", "quiet": True, "no_warnings": True,
-                "ffmpeg_location": str(Path(FFMPEG).parent)}
+                "ffmpeg_location": str(Path(FFMPEG).parent),
+                "progress_hooks": [lambda d: prog and d.get("status") == "downloading" and prog(
+                    d.get("downloaded_bytes", 0) / (d.get("total_bytes") or d.get("total_bytes_estimate") or 1))]}
         with yt_dlp.YoutubeDL(opts) as y:
             info = y.extract_info(src, download=True)
             title = info.get("title")
@@ -48,7 +50,15 @@ def extract_audio(video, wav):
     subprocess.run([FFMPEG, "-y", "-v", "error", "-i", str(video), "-vn", "-ac", "1",
                     "-ar", "16000", str(wav)], check=True)
 
-def transcribe(video, jobdir, log):
+def _collect(it, prog, duration):
+    out = []
+    for sg in it:
+        out.append(sg)
+        if prog and duration:
+            prog(sg.end / duration)
+    return out
+
+def transcribe(video, jobdir, log, prog=None, duration=None):
     jobdir = Path(jobdir)
     cache = jobdir / "transcript.json"
     if cache.exists():
@@ -64,12 +74,12 @@ def transcribe(video, jobdir, log):
         model = WhisperModel(WHISPER_MODEL, device="cuda", compute_type="float16")
         log(f"Whisper '{WHISPER_MODEL}' on GPU")
         segs_iter, info = model.transcribe(audio, word_timestamps=True, vad_filter=True)
-        raw = list(segs_iter)
+        raw = _collect(segs_iter, prog, duration)
     except Exception as e:
         log(f"GPU unavailable ({type(e).__name__}), using CPU")
         model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
         segs_iter, info = model.transcribe(audio, word_timestamps=True, vad_filter=True)
-        raw = list(segs_iter)
+        raw = _collect(segs_iter, prog, duration)
     segs, words = [], []
     for s in raw:
         segs.append({"s": s.start, "e": s.end, "text": s.text.strip()})
