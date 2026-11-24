@@ -186,10 +186,11 @@ def _pct(x):
         return np.ones(len(x))
     return x.argsort().argsort() / (len(x) - 1)
 
-def find_moments(video, tr, duration, mode, count, minlen, maxlen, log, extra=None, T=None):
-    T and T.set("Loudness map", None, "Measuring volume second by second")
-    energy = audio_energy(video)
-    T and T.done("Loudness map")
+def find_moments(video, tr, duration, mode, count, minlen, maxlen, log, extra=None, T=None, energy=None):
+    if energy is None:
+        T and T.set("Loudness map", None, "Measuring volume second by second")
+        energy = audio_energy(video)
+        T and T.done("Loudness map")
     T and T.set("Score moments", 0.1, "Building candidate clips")
     z = (energy - energy.mean()) / (energy.std() + 1e-6)
     for ex in (extra or []):   # chat spikes, on-screen text hits

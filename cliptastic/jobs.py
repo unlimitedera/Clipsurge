@@ -93,22 +93,25 @@ def run_job(jid):
         use_chat = feat["chat_replay"] and yt
         use_ocr = st["mode"] == "gaming" and feat["ocr"]
         use_ai = feat["llm_rating"] and bool(llm.model_id("rating"))
-        names = ((["Chat replay"] if use_chat else []) + (["Read on-screen text"] if use_ocr else [])
-                 + ["Loudness map", "Score moments"] + (["AI rating"] if use_ai else []) + ["Pick best"])
+        names = (["Loudness map"] + (["Chat replay"] if use_chat else []) + (["Read on-screen text"] if use_ocr else [])
+                 + ["Score moments"] + (["AI rating"] if use_ai else []) + ["Pick best"])
         stage(2, names)
         extra = []
+        T.set("Loudness map", None, "Measuring volume second by second")
+        energy = analyze.audio_energy(video)
+        T.done("Loudness map", f"{len(energy)} seconds measured")
         if use_chat:
             T.set("Chat replay", None, "Fetching chat")
             c = extras.chat_signal(job["source"], jd, info["duration"], log)
             if c is not None: extra.append(c)
             T.done("Chat replay")
         if use_ocr:
-            o = extras.ocr_signal(video, info["duration"], log,
-                                  prog=lambda f: T.set("Read on-screen text", f, f"{int(f * 100)}% of the video scanned"))
+            o = extras.ocr_signal(video, info["duration"], log, energy=energy,
+                                  prog=lambda f, d="": T.set("Read on-screen text", f, d))
             if o is not None: extra.append(o)
             T.done("Read on-screen text")
         clips = analyze.find_moments(video, tr, info["duration"], st["mode"], int(st["count"]),
-                                     float(st["minlen"]), float(st["maxlen"]), log, extra, T)
+                                     float(st["minlen"]), float(st["maxlen"]), log, extra, T, energy)
         update(jid, lambda j: j.update(clips=clips))
 
         stage(3, ["Find webcam"] + [f"Clip {c['id']}" for c in clips])

@@ -39,29 +39,61 @@ OCR_HITS = re.compile(r"(kill|elimin|victory|winner|you win|ace|clutch|headshot|
                       r"defeat|wasted|level up|champion|double|triple|quad|penta|mvp|"
                       r"round won|match point|first blood|boss)", re.I)
 
-def ocr_signal(video, duration, log, step=2.0, prog=None):
+def _grab(video, t, w=640):
+    """One frame at time t via a fast keyframe seek (OpenCV seeks are ~2.7 s/frame on AV1)."""
+    import subprocess
+    from .render import _ENV
+    r = subprocess.run([FFMPEG, "-v", "error", "-ss", f"{t:.2f}", "-i", str(video), "-frames:v", "1",
+                        "-vf", f"scale={w}:-2", "-f", "image2pipe", "-vcodec", "bmp", "-"],
+                       capture_output=True, env=_ENV)
+    return r.stdout
+
+def ocr_signal(video, duration, log, energy=None, step=3.0, prog=None, workers=4):
+    """Looks for on-screen words like KILL / VICTORY / ACE, but only during LOUD stretches
+    (top 25% of the volume map), a few frames per stretch, several frames in parallel."""
     try:
         import cv2
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         from rapidocr_onnxruntime import RapidOCR
     except Exception:
         return None
-    ocr = RapidOCR()
-    cap = cv2.VideoCapture(str(video))
-    sig = np.zeros(int(duration) + 2)
-    hits, t = 0, 0.0
-    while t < duration:
-        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
-        ok, fr = cap.read()
-        if not ok:
-            break
-        fr = cv2.resize(fr, (960, int(fr.shape[0] * 960 / fr.shape[1])))
-        res, _ = ocr(fr)
-        if res and any(OCR_HITS.search(r[1]) for r in res):
-            sig[int(t)] += 1
-            hits += 1
-        t += step
-        if prog: prog(t / duration)
-    cap.release()
+    n = int(duration) + 2
+    if energy is not None and len(energy) > 10:
+        thr = np.percentile(energy, 75)
+        secs = np.where(np.asarray(energy) >= thr)[0]
+    else:
+        secs = np.arange(0, n)
+    times, last = [], -99.0
+    for t in secs:                       # one sample every `step` seconds inside loud stretches
+        if t - last >= step:
+            times.append(float(t)); last = t
+    if not times:
+        return None
+    log(f"Reading on-screen text in {len(times)} loud moments")
+    engines = [RapidOCR() for _ in range(workers)]     # one engine per thread
+    sig = np.zeros(n)
+    hits = done = 0
+
+    def work(i, t):
+        buf = _grab(video, t)
+        if not buf:
+            return t, False
+        fr = cv2.imdecode(np.frombuffer(buf, np.uint8), cv2.IMREAD_COLOR)
+        res, _ = engines[i % workers](fr)
+        return t, bool(res and any(OCR_HITS.search(r[1]) for r in res))
+
+    with ThreadPoolExecutor(workers) as ex:
+        futs = [ex.submit(work, i, t) for i, t in enumerate(times)]
+        try:
+            for f in as_completed(futs):
+                t, hit = f.result()
+                if hit:
+                    sig[int(t)] += 1; hits += 1
+                done += 1
+                if prog: prog(done / len(times), f"{done} of {len(times)} frames · {hits} hits")
+        except BaseException:
+            for f in futs: f.cancel()
+            raise
     log(f"On-screen text hits: {hits}")
     return np.convolve(sig, np.ones(7) / 7 * 3, "same") if hits else None
 
