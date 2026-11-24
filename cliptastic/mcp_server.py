@@ -20,6 +20,32 @@ def _brief(j):
                        "title": c["title"], "status": c["status"], "file": c.get("file")} for c in j["clips"]]}
 
 @mcp.tool()
+def list_projects() -> list:
+    """List projects (id, name, videos, clips, brief)."""
+    return [{k: p[k] for k in ("id", "name", "videos", "clips", "brief")} for p in _call("GET", "/api/projects")]
+
+@mcp.tool()
+def create_project(name: str, ideas: list[str] = [], avoid: list[str] = [], mode: str = "auto") -> dict:
+    """Create a project. ideas = what to look for (one short phrase each); avoid = what to skip."""
+    return _call("POST", "/api/projects", json={"name": name, "brief": {"ideas": ideas, "avoid": avoid},
+                                                "defaults": {"mode": mode}})
+
+@mcp.tool()
+def add_videos(project_id: str, sources: list[str]) -> list:
+    """Add videos (URLs or local file paths) to a project. Each is clipped using the project's brief."""
+    return _call("POST", f"/api/projects/{project_id}/videos", json={"sources": sources})
+
+@mcp.tool()
+def set_brief(project_id: str, ideas: list[str], avoid: list[str] = []) -> dict:
+    """Replace the project's brief. Use refind on a video afterwards to apply it."""
+    return _call("POST", f"/api/projects/{project_id}", json={"brief": {"ideas": ideas, "avoid": avoid}})
+
+@mcp.tool()
+def refind_moments(job_id: str) -> dict:
+    """Pick moments again for a video using the project's current brief (reuses download + transcript)."""
+    return _brief(_call("POST", f"/api/jobs/{job_id}/refind"))
+
+@mcp.tool()
 def create_job(source: str, mode: str = "auto", count: int = 5, layout: str = "auto") -> dict:
     """Start clipping a video. source = URL or local file path. mode: auto|gaming|podcast|tutorial.
     layout: auto|stack|game|fit|follow. Returns the job; poll with get_job."""

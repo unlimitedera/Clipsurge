@@ -113,39 +113,52 @@ STYLES = {  # font, size, text BGR, highlight BGR, outline
     "clean": ("Arial", 70, "FFFFFF", "FFFFFF", 4),
     "fire":  ("Arial", 90, "FFFFFF", "3D8AFF", 7),
 }
+POS = {"bottom": (2, 420), "middle": (5, 0), "top": (8, 260)}
 
-def write_ass(path, words, start, end, style="pop"):
+def _bgr(hexrgb):
+    h = hexrgb.lstrip("#")
+    return (h[4:6] + h[2:4] + h[0:2]).upper() if len(h) == 6 else None
+
+def write_ass(path, words, start, end, style="pop", opts=None):
+    opts = opts or {}
     font, size, col, hi, ol = STYLES.get(style, STYLES["pop"])
-    size = int(size * settings.get()["video"]["caption_size"] / 84)
+    base = settings.get()["video"]["caption_size"]
+    size = int((opts.get("size") or size * base / 84))
+    hi = _bgr(opts.get("hi") or "") or hi
+    per = max(1, min(6, int(opts.get("per") or 3)))
+    align, mv = POS.get(opts.get("pos") or "bottom", POS["bottom"])
+    upper = opts.get("upper", True)
+    edits = opts.get("edits") or {}
     head = (f"[Script Info]\nScriptType: v4.00+\nPlayResX: {W}\nPlayResY: {H}\n\n"
             "[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,"
             "OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,"
             "Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\n"
             f"Style: Default,{font},{size},&H00{col},&H00{col},&H00000000,&H80000000,-1,0,0,0,"
-            f"100,100,0,0,1,{ol},2,2,60,60,420,1\n\n[Events]\nFormat: Layer,Start,End,Style,"
+            f"100,100,0,0,1,{ol},2,{align},60,60,{mv},1\n\n[Events]\nFormat: Layer,Start,End,Style,"
             "Name,MarginL,MarginR,MarginV,Effect,Text\n")
-    ws = [dict(w) for w in words if w["s"] >= start - 0.05 and w["e"] <= end + 0.3]
+    ws = [dict(w, i=i) for i, w in enumerate(words) if w["s"] >= start - 0.05 and w["e"] <= end + 0.3]
     for i in range(1, len(ws)):               # starts must increase
         ws[i]["s"] = max(ws[i]["s"], ws[i - 1]["s"] + 0.06)
     lines = []
-    for g in range(0, len(ws), 3):
-        grp = ws[g:g + 3]
-        nxt = ws[g + 3]["s"] if g + 3 < len(ws) else None
+    for g in range(0, len(ws), per):
+        grp = ws[g:g + per]
+        nxt = ws[g + per]["s"] if g + per < len(ws) else None
         for k, w in enumerate(grp):
-            s = w["s"] - start
+            s0 = w["s"] - start
             if k + 1 < len(grp):
-                e = grp[k + 1]["s"] - start          # hold until the next word starts
+                e = grp[k + 1]["s"] - start
             else:
                 e = w["e"] + 0.2
                 if nxt is not None:
-                    e = min(e, nxt)                  # never overlap the next group
+                    e = min(e, nxt)
                 e -= start
-            e = max(e, s + 0.05)
+            e = max(e, s0 + 0.05)
             parts = []
             for m, x in enumerate(grp):
-                txt = x["w"].upper().replace("{", "").replace("}", "")
+                txt = str(edits.get(str(x["i"]), x["w"])).replace("{", "").replace("}", "")
+                txt = txt.upper() if upper else txt
                 parts.append(("{\\c&H%s&}%s{\\c&H%s&}" % (hi, txt, col)) if m == k else txt)
-            lines.append(f"Dialogue: 0,{_ts(s)},{_ts(e)},Default,,0,0,0,,{{\\fscx92\\fscy92"
+            lines.append(f"Dialogue: 0,{_ts(s0)},{_ts(e)},Default,,0,0,0,,{{\\fscx92\\fscy92"
                          f"\\t(0,80,\\fscx100\\fscy100)}}{' '.join(parts)}")
     Path(path).write_text(head + "\n".join(lines) + "\n", "utf-8")
     return len(lines)
@@ -182,6 +195,72 @@ def _normalize(raw, final):
         return False
     return True
 
+# ---------- per-clip edits: audio / video effects ----------
+def _pitch(p):
+    return f"aresample=48000,asetrate=48000*{p},aresample=48000,atempo={1 / p:.4f}"
+
+VOICE = {
+    "deep": _pitch(0.82), "high": _pitch(1.2), "chipmunk": _pitch(1.45), "monster": _pitch(0.7),
+    "robot": "afftfilt=real='hypot(re,im)*sin(0)':imag='hypot(re,im)*cos(0)':win_size=512:overlap=0.75",
+    "radio": "highpass=f=300,lowpass=f=3400,acompressor=threshold=-18dB:ratio=6,volume=1.5",
+    "telephone": "highpass=f=500,lowpass=f=2800,volume=1.3",
+    "megaphone": "highpass=f=400,lowpass=f=4000,acompressor=threshold=-20dB:ratio=9,volume=1.6",
+    "echo": "aecho=0.8:0.88:60:0.4",
+    "stadium": "aecho=0.8:0.9:1000|1800:0.3|0.25",
+}
+
+def _post(src, dst, ed, dur, log):
+    """Apply the clip's audio/video edits. Returns True if a new file was written."""
+    au, vi = ed.get("audio") or {}, ed.get("video") or {}
+    speed = float(vi.get("speed") or 1.0)
+    out_dur = dur / speed
+    a = []                                   # audio chain
+    if speed != 1.0: a.append(f"atempo={speed}")
+    if au.get("denoise"): a.append("afftdn=nr=14:nf=-28")
+    if au.get("voice") in VOICE: a.append(VOICE[au["voice"]])
+    if float(au.get("bass") or 0): a.append(f"bass=g={float(au['bass'])}")
+    if float(au.get("treble") or 0): a.append(f"treble=g={float(au['treble'])}")
+    if au.get("leveler"): a.append("acompressor=threshold=-21dB:ratio=3:attack=20:release=250:makeup=4")
+    if float(au.get("gain") or 0): a.append(f"volume={float(au['gain'])}dB")
+    if au.get("mute"): a.append("volume=0")
+    fi, fo = float(vi.get("fade_in") or 0), float(vi.get("fade_out") or 0)
+    if fi: a.append(f"afade=t=in:st=0:d={fi}")
+    if fo: a.append(f"afade=t=out:st={max(0, out_dur - fo):.2f}:d={fo}")
+    v = []                                   # video chain
+    if speed != 1.0: v.append(f"setpts=PTS/{speed}")
+    br, ct, sa = float(vi.get("brightness") or 0), float(vi.get("contrast") or 1), float(vi.get("saturation") or 1)
+    if br or ct != 1 or sa != 1: v.append(f"eq=brightness={br}:contrast={ct}:saturation={sa}")
+    if fi: v.append(f"fade=t=in:st=0:d={fi}")
+    if fo: v.append(f"fade=t=out:st={max(0, out_dur - fo):.2f}:d={fo}")
+    music = au.get("music") if au.get("music") and Path(str(au.get("music"))).is_file() else None
+    if not (a or v or music):
+        return False
+    cmd = [FFMPEG, "-y", "-v", "error", "-i", str(src)]
+    if music:
+        cmd += ["-stream_loop", "-1", "-i", str(music)]
+    voice = ",".join(a) if a else "anull"
+    mv = float(au.get("music_vol") or 0.25)
+    if music:
+        duck = au.get("duck", True)
+        if duck:
+            fc = (f"[0:a]{voice},asplit[v1][v2];[1:a]atrim=0:{out_dur:.2f},volume={mv}[m];"
+                  f"[m][v2]sidechaincompress=threshold=0.04:ratio=10:attack=20:release=500[md];"
+                  f"[v1][md]amix=inputs=2:normalize=0:duration=first[a]")
+        else:
+            fc = (f"[0:a]{voice}[v1];[1:a]atrim=0:{out_dur:.2f},volume={mv}[m];"
+                  f"[v1][m]amix=inputs=2:normalize=0:duration=first[a]")
+        cmd += ["-filter_complex", fc, "-map", "0:v", "-map", "[a]"]
+        if v: cmd += ["-vf", ",".join(v)]
+    else:
+        cmd += ["-map", "0:v", "-map", "0:a?"]
+        if v: cmd += ["-vf", ",".join(v)]
+        if a: cmd += ["-af", ",".join(a)]
+    cmd += (_enc() if v else ["-c:v", "copy"]) + ["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(dst)]
+    r = subprocess.run(cmd, capture_output=True, text=True, env=_ENV)
+    if r.returncode:
+        raise RuntimeError("effects failed: " + r.stderr[-300:])
+    return True
+
 # ---------- render ----------
 def _run_ffmpeg(cmd, cwd, dur, prog, lo=0.0, hi=0.9):
     """Run ffmpeg with live progress (0-1 mapped into lo..hi)."""
@@ -204,13 +283,19 @@ def _run_ffmpeg(cmd, cwd, dur, prog, lo=0.0, hi=0.9):
 
 def render_clip(video, info, tr, clip, out_path, layout="auto", cap_style="pop",
                 captions=True, log=print, prog=None, mode="auto", webcam=None):
+    ed = clip.get("edit") or {}
+    layout = ed.get("layout") or layout
+    cp = ed.get("captions") or {}
+    cap_style = cp.get("style") or cap_style
+    if cap_style == "off": captions = False
     start, end = float(clip["start"]), float(clip["end"])
     dur = end - start
     out_path = Path(out_path)
     work = out_path.parent
     raw = work / f"clip{clip['id']}_raw.mp4"
     ass_name = f"clip{clip['id']}.ass"
-    n_cap = write_ass(work / ass_name, tr["words"], start, end, cap_style) if captions else 0
+    n_cap = write_ass(work / ass_name, tr["words"], start, end, cap_style,
+                    {**cp, "edits": ed.get("word_edits")}) if captions else 0
     ass = f",ass={ass_name}" if n_cap else ""
     fw, fh = info["width"], info["height"]
     ts = xs = cam = None
@@ -287,6 +372,16 @@ def render_clip(video, info, tr, clip, out_path, layout="auto", cap_style="pop",
                 gx = int(np.clip(min(gx, bx1 * fw - gw), 0, fw - gw))
             fc = (f"[0:v]split[a][b];[a]crop={cropw}:{croph}:{x0}:{y0},scale={W}:{top_h}[t];"
                   f"[b]crop={gw}:{fh}:{gx}:0,scale={W}:{bot_h}[g];[t][g]vstack,format=yuv420p{ass}[v]")
+        elif used == "manual":  # user-placed crop box, optional pan to a second position
+            m = ed.get("manual") or {}
+            ch = int(max(0.25, min(1.0, float(m.get("zoom", 1.0)))) * fh) // 2 * 2
+            cw = int(ch * 9 / 16) // 2 * 2
+            def px(c): return int(np.clip(float(c) * fw - cw / 2, 0, fw - cw))
+            x0 = px(m.get("cx", 0.5))
+            x1 = px(m["cx2"]) if m.get("cx2") not in (None, "") else x0
+            y0 = int(np.clip(float(m.get("cy", 0.5)) * fh - ch / 2, 0, fh - ch))
+            xe = f"{x0}+({x1}-{x0})*t/{dur:.3f}" if x1 != x0 else str(x0)
+            fc = f"[0:v]crop={cw}:{ch}:x='{xe}':y={y0},scale={W}:{H}:flags=lanczos,format=yuv420p{ass}[v]"
         elif used == "game":    # gameplay only, centered 9:16 crop
             fc = f"[0:v]crop=ih*9/16:ih,scale={W}:{H},format=yuv420p{ass}[v]"
         else:                   # fit: full frame over a blurred copy
@@ -298,7 +393,16 @@ def render_clip(video, info, tr, clip, out_path, layout="auto", cap_style="pop",
                "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", raw.name]
         _run_ffmpeg(cmd, work, dur, prog, 0.08, 0.9)
     if prog: prog(0.93, "Balancing loudness")
-    ok = _normalize(raw, out_path)
+    if ed.get("audio") or ed.get("video"):
+        if prog: prog(0.9, "Applying sound and video effects")
+        fx = work / f"clip{clip['id']}_fx.mp4"
+        if _post(raw, fx, ed, dur, log):
+            raw.unlink(missing_ok=True); fx.replace(raw)
+    norm = (ed.get("audio") or {}).get("normalize", True)
+    if norm:
+        ok = _normalize(raw, out_path)
+    else:
+        shutil.copy2(raw, out_path); ok = True
     raw.unlink(missing_ok=True)
     if prog: prog(1.0, "Done")
     if not ok:

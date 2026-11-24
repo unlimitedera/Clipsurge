@@ -3,7 +3,7 @@
 import json, os, threading, time, traceback, uuid
 from concurrent.futures import ThreadPoolExecutor
 from .config import JOBS
-from . import analyze, render, extras, settings, llm
+from . import analyze, render, extras, settings, llm, projects
 from .progress import Tracker, Cancelled
 
 _pool = ThreadPoolExecutor(max_workers=1)
@@ -49,12 +49,18 @@ def list_jobs():
         except Exception: pass
     return out
 
-def create(source, opts):
+def create(source, opts=None, project="inbox"):
+    opts = dict(opts or {})
+    try:
+        pr = projects.get(project)
+    except Exception:
+        project, pr = "inbox", projects.get("inbox")
     jid = time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4]
     (JOBS / jid).mkdir(parents=True)
     job = {"id": jid, "source": source, "title": source[-60:], "stage": 0, "state": "queued",
            "error": None, "log": [], "clips": [], "info": None,
-           "settings": {**settings.get()["defaults"], **opts}}
+           "project": project, "brief": pr.get("brief", {}),
+           "settings": {**settings.get()["defaults"], **pr.get("defaults", {}), **opts}}
     save(job)
     PROG[jid] = Tracker(jid)
     _pool.submit(run_job, jid)
@@ -76,6 +82,24 @@ def resume(jid):
     PROG[jid] = Tracker(jid)
     _pool.submit(run_job, jid)
     return job
+
+def refind(jid):
+    """Pick moments again with the project's CURRENT brief. Reuses the download and transcript."""
+    def f(j):
+        try: j["brief"] = projects.get(j.get("project", "inbox")).get("brief", {})
+        except Exception: pass
+        j["clips"] = []; j.pop("webcam", None); j["state"] = "queued"; j["error"] = None
+    update(jid, f)
+    PROG[jid] = Tracker(jid)
+    _pool.submit(run_job, jid)
+    return load(jid)
+
+def remove(jid):
+    import shutil
+    T = PROG.get(jid)
+    if load(jid)["state"] in ("running", "queued"):
+        raise RuntimeError("Cancel the job first")
+    shutil.rmtree(JOBS / jid, ignore_errors=True); PROG.pop(jid, None)
 
 def cancel(jid):
     T = PROG.get(jid)
@@ -128,7 +152,7 @@ def run_job(jid):
             if o is not None: extra.append(o)
             T.done("Read on-screen text")
         clips = analyze.find_moments(video, tr, info["duration"], st["mode"], int(st["count"]),
-                                     float(st["minlen"]), float(st["maxlen"]), log, extra, T, energy)
+                                     float(st["minlen"]), float(st["maxlen"]), log, extra, T, energy, job.get("brief"))
         update(jid, lambda j: j.update(clips=clips))
 
         stage(3, ["Find webcam"] + [f"Clip {c['id']}" for c in clips])

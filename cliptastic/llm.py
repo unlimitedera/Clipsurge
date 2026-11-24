@@ -72,17 +72,25 @@ def model_id(role="rating"):
     except Exception:
         return None
 
+def _chat(p, mid, messages, max_tokens, temperature=0.3):
+    """Chat call. Asks reasoning models (Qwen, etc.) not to think out loud: otherwise they spend the
+    whole token budget on hidden reasoning and return an empty answer. Retries without the hint
+    for servers that reject it."""
+    url = p["base_url"].rstrip("/") + "/chat/completions"
+    body = {"model": mid, "temperature": temperature, "max_tokens": max_tokens, "messages": messages}
+    r = httpx.post(url, headers=_headers(p), timeout=180, json={**body, "reasoning_effort": "none"})
+    if r.status_code == 400:
+        r = httpx.post(url, headers=_headers(p), timeout=180, json=body)
+    r.raise_for_status()
+    return r.json()["choices"][0]["message"]["content"] or ""
+
 def chat_json(system, user, max_tokens=2000, role="rating"):
     p = provider(role)
     mid = model_id(role)
     if not p or not mid:
         return None
     try:
-        r = httpx.post(p["base_url"].rstrip("/") + "/chat/completions", headers=_headers(p), timeout=180,
-                       json={"model": mid, "temperature": 0.3, "max_tokens": max_tokens,
-                             "messages": [{"role": "system", "content": system},
-                                          {"role": "user", "content": user}]})
-        txt = r.json()["choices"][0]["message"]["content"]
+        txt = _chat(p, mid, [{"role": "system", "content": system}, {"role": "user", "content": user}], max_tokens)
         txt = re.sub(r"<think>.*?</think>", "", txt, flags=re.S).strip()
         m = re.search(r"(\[.*\]|\{.*\})", txt, flags=re.S)
         return json.loads(m.group(1)) if m else None

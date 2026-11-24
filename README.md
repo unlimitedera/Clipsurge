@@ -49,3 +49,12 @@ YouTube options. API keys are stored in data/settings.json (not committed) and s
 `python -m cliptastic.mcp_server` exposes create_job, list_jobs, get_job, search_moments,
 add_clip, render_pending, upload_to_youtube. The Settings tab shows the config to paste into
 an agent's MCP settings. Requires `mcp<2`.
+
+## Projects, goals, editor
+- Projects tab: each project has goals ("what to look for", "skip these"), defaults, and many videos.
+  Videos come from links, files picked on this PC, uploads, or OBS recordings. Goals boost matching
+  moments (word overlap, plus the AI when connected) and label clips with the matched idea.
+- Clip editor (Edit on any clip): timing (loudness map, drag handles, word-accurate cuts), crop
+  (auto, webcam+gameplay, gameplay, whole screen, follow face, manual box with optional pan),
+  captions (style, position, size, color, words per line, fix wording), sound (volume, noise
+  reduction, voice effects, bass/treble, music with ducking, mute), look (speed, fades, colour).

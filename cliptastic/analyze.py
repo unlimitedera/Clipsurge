@@ -192,13 +192,32 @@ MODES = {  # peak, mean, keywords, speech-rate, hook
     "tutorial": (0.10, 0.10, 0.25, 0.25, 0.30),
 }
 
+_W = re.compile(r"[a-z0-9']+")
+_SKIP = set("the a an and or of to in on is it that this for with as at by be are was were i you he she we they my your when where who what moments moment clips clip parts part scenes scene any all find look show".split())
+
+def _toks(t):
+    return {w for w in _W.findall(t.lower()) if w not in _SKIP and len(w) > 2}
+
+def _brief_match(text, brief):
+    """Returns (best idea or '', 0..1 strength, avoided?). Plain word overlap: no AI needed."""
+    words = _toks(text)
+    best, bs = "", 0.0
+    for idea in brief.get("ideas", []):
+        t = _toks(idea)
+        if t:
+            sc = len(t & words) / len(t)
+            if sc > bs: best, bs = idea, sc
+    avoided = any(_toks(a) and len(_toks(a) & words) >= max(1, len(_toks(a)) // 2 + len(_toks(a)) % 2)
+                  for a in brief.get("avoid", []))
+    return (best if bs >= 0.34 else ""), bs, avoided
+
 def _pct(x):
     x = np.asarray(x, dtype=float)
     if len(x) < 2:
         return np.ones(len(x))
     return x.argsort().argsort() / (len(x) - 1)
 
-def find_moments(video, tr, duration, mode, count, minlen, maxlen, log, extra=None, T=None, energy=None):
+def find_moments(video, tr, duration, mode, count, minlen, maxlen, log, extra=None, T=None, energy=None, brief=None):
     if energy is None:
         T and T.set("Loudness map", None, "Measuring volume second by second")
         energy = audio_energy(video)
@@ -242,6 +261,13 @@ def find_moments(video, tr, duration, mode, count, minlen, maxlen, log, extra=No
     for n, c in enumerate(cands):
         c["heur"] = 100 * (w[0] * cols[0][n] + w[1] * cols[1][n] + w[2] * cols[2][n]
                            + w[3] * cols[3][n] + w[4] * hooks[n])
+    brief = brief or {}
+    has_brief = bool(brief.get("ideas") or brief.get("avoid"))
+    if has_brief:
+        for c in cands:
+            idea, bs, avoided = _brief_match(c["text"], brief)
+            c["idea"] = idea
+            c["heur"] = min(100, c["heur"] + 35 * bs) - (45 if avoided else 0)
     cands.sort(key=lambda c: -c["heur"])
     keep = []
     for c in cands:  # non-max suppression
@@ -251,13 +277,15 @@ def find_moments(video, tr, duration, mode, count, minlen, maxlen, log, extra=No
             break
     T and T.done("Score moments", f"{len(cands)} candidates")
     if T and any(x["name"] == "AI rating" for x in T.subs): T.set("AI rating", None, "Waiting for the model")
-    rated = _llm_rate(keep, mode, log)
+    rated = _llm_rate(keep, mode, log, brief)
     if T and any(x["name"] == "AI rating" for x in T.subs): T.done("AI rating", "rated" if rated else "no reply")
     T and T.set("Pick best", 0.5, f"Choosing the top {count}")
     for n, c in enumerate(keep):
         r = rated.get(n)
         if r:
-            c["score"] = round(0.5 * c["heur"] + 0.5 * float(r.get("score", c["heur"])))
+            w = 0.65 if has_brief else 0.5          # with a brief, the AI's judgment counts more
+            c["score"] = round((1 - w) * c["heur"] + w * float(r.get("score", c["heur"])))
+            if r.get("idea") and not c.get("idea"): c["idea"] = str(r["idea"])[:80]
             c["title"] = r.get("title") or _title(c)
             c["tags"] = r.get("hashtags") or []
         else:
@@ -269,7 +297,7 @@ def find_moments(video, tr, duration, mode, count, minlen, maxlen, log, extra=No
     for n, c in enumerate(keep[:count]):
         out.append({"id": n + 1, "start": round(c["s"], 2), "end": round(c["e"], 2),
                     "score": c["score"], "title": c["title"], "tags": c["tags"],
-                    "text": c["text"][:400], "approved": True, "status": "pending"})
+                    "text": c["text"][:400], "idea": c.get("idea", ""), "approved": True, "status": "pending"})
     T and T.done("Pick best", f"{len(out)} moments")
     return out
 
@@ -280,7 +308,7 @@ def _title(c):
     first = re.split(r"(?<=[.!?])\s", t)[0]
     return (first[:70] + "...") if len(first) > 72 else first
 
-def _llm_rate(cands, mode, log):
+def _llm_rate(cands, mode, log, brief=None):
     if not settings.get()["features"]["llm_rating"]:
         return {}
     if not llm.model_id("rating"):
@@ -289,10 +317,15 @@ def _llm_rate(cands, mode, log):
     p = llm.provider("rating")
     log(f"Rating moments with {p['name']}...")
     items = [{"id": i, "text": c["text"][:500]} for i, c in enumerate(cands)]
+    wants = ""
+    if brief and brief.get("ideas"):
+        wants += "The creator wants moments like:\n- " + "\n- ".join(brief["ideas"]) + "\nScore moments that match these much higher and set \"idea\" to the matching line (else \"\").\n"
+    if brief and brief.get("avoid"):
+        wants += "Score moments about these very low:\n- " + "\n- ".join(brief["avoid"]) + "\n"
     res = llm.chat_json(
         "You pick viral short-video moments. For each candidate rate 0-100 how well it works "
-        "as a standalone short (hook, emotion, surprise, clear payoff). Reply ONLY with a JSON "
-        'array: [{"id":0,"score":0-100,"title":"max 8 words catchy title","hashtags":["#a","#b"]}]',
+        "as a standalone short (hook, emotion, surprise, clear payoff). " + wants + "Reply ONLY with a JSON "
+        'array: [{"id":0,"score":0-100,"title":"max 8 words catchy title","hashtags":["#a","#b"],"idea":""}]',
         f"Video type: {mode}\nCandidates:\n{json.dumps(items)}", role="rating")
     if not isinstance(res, list):
         log("LLM reply unusable: heuristic scoring only")
