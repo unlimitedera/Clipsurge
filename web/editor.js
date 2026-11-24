@@ -71,7 +71,7 @@ async function openEditor(jid,cid,onSaved){
   P.querySelector("[data-in=end]").onchange=e=>{S.end=Math.min(S.dur,Math.max(S.start+3,+e.target.value));sync(true)};
   const ws=P.querySelector("[data-ws]"),we=P.querySelector("[data-we]");
   function words(){const box=P.querySelector("[data-words]");if(!box)return;
-   box.innerHTML=S.words.map(w=>`<button class="w ${w.s>=S.start-0.05&&w.e<=S.end+0.3?"in":""} ${S.sel==w.i?"sel":""}" data-i="${w.i}" title="${fmt(w.s)}">${esc((ed().word_edits||{})[w.i]??w.w)}</button>`).join("")||'<span class="mu">No speech detected here.</span>';
+   box.innerHTML=S.words.map(w=>`<button dir="auto" class="w ${w.s>=S.start-0.05&&w.e<=S.end+0.3?"in":""} ${S.sel==w.i?"sel":""}" data-i="${w.i}" title="${fmt(w.s)}">${esc((ed().word_edits||{})[w.i]??w.w)}</button>`).join("")||'<span class="mu">No speech detected here.</span>';
    box.querySelectorAll(".w").forEach(b=>b.onclick=()=>{S.sel=+b.dataset.i;ws.disabled=we.disabled=false;words()})}
   ws.onclick=()=>{const w=S.words.find(x=>x.i==S.sel);if(w&&w.s<S.end-3){S.start=Math.max(0,+(w.s-0.1).toFixed(1));sync(true)}};
   we.onclick=()=>{const w=S.words.find(x=>x.i==S.sel);if(w&&w.e>S.start+3){S.end=+(w.e+0.2).toFixed(1);sync(true)}};
@@ -118,7 +118,7 @@ async function openEditor(jid,cid,onSaved){
    <label class="chk"><input type="checkbox" data-c="upper" ${c.upper===false?"":"checked"}><span>ALL CAPS</span></label></div>
    <div class="capprev"><div class="capmock ${c.pos||"bottom"}" style="font-size:${Math.round((c.size||84)/5)}px"><span>${(c.upper===false?"this is":"THIS IS")}</span> <b style="color:${c.hi||"#c6ff3d"}">${c.upper===false?"your caption":"YOUR CAPTION"}</b></div></div>
    <div class="wordsbar"><b>Fix wording</b><span class="mu small">edit any misheard word</span></div>
-   <div class="words edit">${S.words.filter(w=>w.s>=S.start-0.05&&w.e<=S.end+0.3).map(w=>`<input data-wi="${w.i}" value="${esc(edits[w.i]??w.w)}" size="${Math.max(3,(edits[w.i]??w.w).length)}" aria-label="word at ${fmt(w.s)}">`).join("")||'<span class="mu">No speech in this clip.</span>'}</div>`;
+   <div class="words edit">${S.words.filter(w=>w.s>=S.start-0.05&&w.e<=S.end+0.3).map(w=>`<input dir="auto" data-wi="${w.i}" value="${esc(edits[w.i]??w.w)}" size="${Math.max(3,(edits[w.i]??w.w).length)}" aria-label="word at ${fmt(w.s)}">`).join("")||'<span class="mu">No speech in this clip.</span>'}</div>`;
   P.querySelectorAll("[data-c]").forEach(el=>el.onchange=()=>{const k=el.dataset.c;let v=el.type=="checkbox"?el.checked:el.value;if(k=="style"&&!v){delete c.style}else c[k]=v;captions(P)});
   P.querySelectorAll("[data-k=size],[data-k=per]").forEach(el=>el.oninput=()=>{c[el.dataset.k]=+el.value;P.querySelector(`[data-v=${el.dataset.k}]`).textContent=el.value});
   P.querySelectorAll("[data-k=size],[data-k=per]").forEach(el=>el.onchange=()=>captions(P));

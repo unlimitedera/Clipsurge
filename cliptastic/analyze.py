@@ -96,6 +96,29 @@ def ingest(src, jobdir, log, T=None):
     return path, title, probe(path)
 
 # ---------- 2. transcribe ----------
+NON_LATIN = {"ar", "fa", "ur", "he", "ps", "ku", "sd", "ug", "yi", "hi", "bn", "ta", "te", "th", "ru",
+             "uk", "bg", "sr", "zh", "ja", "ko", "el", "ka", "hy"}
+RTL_LANGS = {"ar", "fa", "ur", "he", "ps", "ku", "sd", "ug", "yi"}
+_LAT = re.compile(r"[A-Za-z\u00C0-\u024F\u1E00-\u1EFF]")
+
+def clean_transcript(tr):
+    """For non-Latin languages (Arabic, Hebrew, Russian...), remove stray English/Latin letters that
+    speech models hallucinate. Word positions are kept (emptied, not deleted) so edits stay aligned."""
+    if tr.get("language") not in NON_LATIN or not settings.get()["features"].get("native_only", True):
+        return tr
+    for w in tr["words"]:
+        if _LAT.search(w["w"]):
+            w["w"] = _LAT.sub("", w["w"]).strip()
+        if w["w"] and not re.search(r"\w", w["w"]):
+            w["w"] = ""
+    for sg in tr["segments"]:
+        if _LAT.search(sg["text"]):
+            sg["text"] = re.sub(r"\s+", " ", _LAT.sub("", sg["text"])).strip()
+    return tr
+
+def load_transcript(path):
+    return clean_transcript(json.loads(Path(path).read_text("utf-8")))
+
 def extract_audio(video, wav, duration=None, T=None):
     p = subprocess.Popen([FFMPEG, "-y", "-v", "error", "-progress", "pipe:1", "-nostats", "-i", str(video),
                           "-vn", "-ac", "1", "-ar", "16000", str(wav)],
@@ -120,14 +143,17 @@ def _collect(it, T, duration):
                   f"{fmt_time(sg.end)} of {fmt_time(duration)} · {len(out)} phrases")
     return out
 
-def transcribe(video, jobdir, log, T=None, duration=None):
+def transcribe(video, jobdir, log, T=None, duration=None, lang_req=None, model_req=None):
     jobdir = Path(jobdir)
     cache = jobdir / "transcript.json"
-    if cache.exists():
+    cached = json.loads(cache.read_text("utf-8")) if cache.exists() else None
+    if cached and ((model_req and cached.get("model") != model_req) or (lang_req and cached.get("lang_req") != lang_req)):
+        cached = None                                  # user asked for a different model/language
+    if cached:
         if T:
             for n in ("Extract audio", "Load speech model", "Transcribe speech"):
                 T.done(n, "already done")
-        return json.loads(cache.read_text("utf-8"))
+        return clean_transcript(cached)
     wav = jobdir / "audio.wav"
     extract_audio(video, wav, duration, T)
     T and T.done("Extract audio")
@@ -137,8 +163,9 @@ def transcribe(video, jobdir, log, T=None, duration=None):
     with wave.open(str(wav)) as wf:
         audio = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16).astype(np.float32) / 32768
     ts = settings.get()["transcribe"]
-    name = ts.get("model") or WHISPER_MODEL
-    lang = None if ts.get("language", "auto") == "auto" else ts["language"]
+    name = model_req or ts.get("model") or WHISPER_MODEL
+    req = lang_req or ts.get("language", "auto")
+    lang = None if req in ("auto", "", None) else req
     kw = dict(word_timestamps=True, vad_filter=True, language=lang)
     raw = None
     if ts.get("device", "auto") in ("auto", "cuda"):
@@ -163,9 +190,9 @@ def transcribe(video, jobdir, log, T=None, duration=None):
         segs.append({"s": s.start, "e": s.end, "text": s.text.strip()})
         for w in (s.words or []):
             words.append({"w": w.word.strip(), "s": w.start, "e": w.end})
-    out = {"language": info.language, "segments": segs, "words": words}
+    out = {"language": info.language, "segments": segs, "words": words, "model": name, "lang_req": req}
     cache.write_text(json.dumps(out), "utf-8")
-    return out
+    return clean_transcript(out)
 
 # ---------- 3. find moments ----------
 def audio_energy(video):
@@ -324,7 +351,8 @@ def _llm_rate(cands, mode, log, brief=None):
         wants += "Score moments about these very low:\n- " + "\n- ".join(brief["avoid"]) + "\n"
     res = llm.chat_json(
         "You pick viral short-video moments. For each candidate rate 0-100 how well it works "
-        "as a standalone short (hook, emotion, surprise, clear payoff). " + wants + "Reply ONLY with a JSON "
+        "as a standalone short (hook, emotion, surprise, clear payoff). Write titles and hashtags in the same "
+        "language and script as the transcript (never mix in English letters unless the transcript does). " + wants + "Reply ONLY with a JSON "
         'array: [{"id":0,"score":0-100,"title":"max 8 words catchy title","hashtags":["#a","#b"],"idea":""}]',
         f"Video type: {mode}\nCandidates:\n{json.dumps(items)}", role="rating")
     if not isinstance(res, list):

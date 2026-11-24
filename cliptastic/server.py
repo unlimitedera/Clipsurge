@@ -143,9 +143,9 @@ def job_energy(jid: str):
 
 @app.get("/api/jobs/{jid}/words")
 def job_words(jid: str, start: float, end: float):
-    tr = json.loads((JOBS / jid / "transcript.json").read_text("utf-8"))
+    tr = analyze.load_transcript(JOBS / jid / "transcript.json")
     return [{"i": i, "w": w["w"], "s": round(w["s"], 2), "e": round(w["e"], 2)}
-            for i, w in enumerate(tr["words"]) if w["e"] >= start - 0.3 and w["s"] <= end + 0.3]
+            for i, w in enumerate(tr["words"]) if w["w"] and w["e"] >= start - 0.3 and w["s"] <= end + 0.3]
 
 @app.get("/api/jobs/{jid}/frame")
 def job_frame(jid: str, t: float, w: int = 960):
@@ -278,7 +278,7 @@ class NewClip(BaseModel):
 @app.get("/api/jobs/{jid}/search")
 def search(jid: str, q: str):
     job = jobs.load(jid)
-    tr = json.loads((JOBS / jid / "transcript.json").read_text("utf-8"))
+    tr = analyze.load_transcript(JOBS / jid / "transcript.json")
     st = job["settings"]
     return extras.search(tr, q, float(st["minlen"]), float(st["maxlen"]))
 

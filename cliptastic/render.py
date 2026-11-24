@@ -137,6 +137,7 @@ def write_ass(path, words, start, end, style="pop", opts=None):
             f"100,100,0,0,1,{ol},2,{align},60,60,{mv},1\n\n[Events]\nFormat: Layer,Start,End,Style,"
             "Name,MarginL,MarginR,MarginV,Effect,Text\n")
     ws = [dict(w, i=i) for i, w in enumerate(words) if w["s"] >= start - 0.05 and w["e"] <= end + 0.3]
+    ws = [w for w in ws if str(edits.get(str(w["i"]), w["w"])).strip()]   # cleaned-out words
     for i in range(1, len(ws)):               # starts must increase
         ws[i]["s"] = max(ws[i]["s"], ws[i - 1]["s"] + 0.06)
     lines = []
@@ -158,8 +159,11 @@ def write_ass(path, words, start, end, style="pop", opts=None):
                 txt = str(edits.get(str(x["i"]), x["w"])).replace("{", "").replace("}", "")
                 txt = txt.upper() if upper else txt
                 parts.append(("{\\c&H%s&}%s{\\c&H%s&}" % (hi, txt, col)) if m == k else txt)
+            line = " ".join(parts)
+            if any("\u0590" <= ch <= "\u08ff" for ch in line):   # Arabic/Hebrew: force right-to-left
+                line = "\u202b" + line + "\u202c"
             lines.append(f"Dialogue: 0,{_ts(s0)},{_ts(e)},Default,,0,0,0,,{{\\fscx92\\fscy92"
-                         f"\\t(0,80,\\fscx100\\fscy100)}}{' '.join(parts)}")
+                         f"\\t(0,80,\\fscx100\\fscy100)}}{line}")
     Path(path).write_text(head + "\n".join(lines) + "\n", "utf-8")
     return len(lines)
 

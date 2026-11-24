@@ -4,6 +4,7 @@ const STAGES=["Get video","Transcribe","Find moments","Crop + captions","Export"
 const IDEAS=["Funny reactions","Clutch plays and comebacks","Rage and screaming","Surprising plot twists","Hot takes and arguments","Tips and tricks explained clearly","Epic fails"];
 const AVOID=["Sponsor reads","Menus and loading screens","Long silences"];
 const MODES=[["auto","Auto"],["gaming","Gaming"],["podcast","Podcast"],["tutorial","Tutorial"]];
+const LANGS=[["auto","Auto-detect"],["ar","Arabic"],["en","English"],["es","Spanish"],["fr","French"],["de","German"],["tr","Turkish"],["ru","Russian"],["hi","Hindi"],["ur","Urdu"],["fa","Persian"],["he","Hebrew"],["pt","Portuguese"],["it","Italian"],["ja","Japanese"],["ko","Korean"],["zh","Chinese"]];
 const LAYOPT=[["auto","Auto"],["stack","Webcam + gameplay"],["game","Gameplay only"],["fit","Whole screen + blur"],["follow","Follow face"]];
 const opt2=(v,l)=>l.map(([k,t])=>`<option value="${k}" ${String(v)===String(k)?"selected":""}>${t}</option>`).join("");
 const app=()=>$("app");
@@ -139,6 +140,7 @@ function drawBrief(P){
   <div><div class="card"><h3>Project</h3><div class="form"><label>Name<input type="text" id="bn" value="${esc(P.name)}"></label><label>Description<input type="text" id="bd" value="${esc(P.description||"")}"></label></div></div>
   <div class="card"><h3>Defaults for videos in this project</h3><div class="two"><label>Video type<select id="bm">${opt2(d.mode||"auto",MODES)}</select></label><label>Clips per video<input type="number" id="bc" min="1" max="20" value="${d.count||5}"></label>
    <label>Crop<select id="bl">${opt2(d.layout||"auto",LAYOPT)}</select></label><label>Captions<select id="bk">${opt2(d.captions||"pop",[["pop","Pop"],["clean","Clean"],["fire","Fire"],["off","Off"]])}</select></label>
+   <label>Spoken language<select id="blang">${opt2(d.language||"auto",LANGS)}</select></label><label>Speech model<select id="bwm">${opt2(d.whisper_model||"",[["","Use the Settings default"],["small","small (fast)"],["medium","medium"],["large-v3","large-v3 (best, use for Arabic)"]])}</select></label>
    <label>Shortest (s)<input type="number" id="bmin" value="${d.minlen||20}"></label><label>Longest (s)<input type="number" id="bmax" value="${d.maxlen||55}"></label></div></div>
   <div class="row" style="justify-content:flex-start;gap:10px"><button id="bsave">Save</button><button class="g" id="bapply">Save and re-find in all videos</button></div>
   ${P.id!="inbox"?`<div class="card danger-zone"><h3>Delete project</h3><p class="mu small">Removes the project, its videos and all clips Cliptastic made. Your original files are not touched.</p><button class="danger" id="bdel">Delete project</button></div>`:""}</div></div>`;
@@ -146,7 +148,7 @@ function drawBrief(P){
  el.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{const t=$("bi");if(!t.value.split("\n").includes(b.dataset.add))t.value=(t.value.trim()?t.value.trim()+"\n":"")+b.dataset.add});
  el.querySelectorAll("[data-avoid]").forEach(b=>b.onclick=()=>{const t=$("ba");if(!t.value.split("\n").includes(b.dataset.avoid))t.value=(t.value.trim()?t.value.trim()+"\n":"")+b.dataset.avoid});
  const save=async()=>{const r=await post("/api/projects/"+P.id,{name:$("bn").value,description:$("bd").value,brief:{ideas:$("bi").value,avoid:$("ba").value},
-  defaults:{mode:$("bm").value,count:+$("bc").value,layout:$("bl").value,captions:$("bk").value,minlen:+$("bmin").value,maxlen:+$("bmax").value}});if(!r.ok){toast("Could not save","err");return false}toast("Saved");return true};
+  defaults:{mode:$("bm").value,count:+$("bc").value,layout:$("bl").value,captions:$("bk").value,minlen:+$("bmin").value,maxlen:+$("bmax").value,language:$("blang").value,whisper_model:$("bwm").value}});if(!r.ok){toast("Could not save","err");return false}toast("Saved");return true};
  $("bsave").onclick=save;
  $("bapply").onclick=async()=>{if(!await save())return;const jobs=(P.jobs||[]).filter(j=>j.video&&!["running","queued"].includes(j.state));
   if(!jobs.length){toast("No finished videos to re-find");return}

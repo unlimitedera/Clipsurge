@@ -88,6 +88,10 @@ def refind(jid):
     def f(j):
         try: j["brief"] = projects.get(j.get("project", "inbox")).get("brief", {})
         except Exception: pass
+        try:
+            for k, v in projects.get(j.get("project", "inbox")).get("defaults", {}).items():
+                j["settings"][k] = v
+        except Exception: pass
         j["clips"] = []; j.pop("webcam", None); j["state"] = "queued"; j["error"] = None
     update(jid, f)
     PROG[jid] = Tracker(jid)
@@ -127,8 +131,11 @@ def run_job(jid):
         update(jid, lambda j: j.update(title=title or j["title"], info=info, video=video.name))
 
         stage(1, ["Extract audio", "Load speech model", "Transcribe speech"])
-        tr = analyze.transcribe(video, jd, log, T, info["duration"])
+        lg = st.get("language"); lg = lg if lg not in (None, "", "auto") else None
+        tr = analyze.transcribe(video, jd, log, T, info["duration"], lg, st.get("whisper_model") or None)
         log(f"Transcript: {len(tr['words'])} words, language {tr['language']}")
+        if tr['language'] in analyze.NON_LATIN and tr.get('model') in ('tiny', 'base', 'small'):
+            log(f"Tip: the '{tr.get('model')}' speech model makes many mistakes in this language. Choose large-v3 in the project's Goals and settings, then Re-find.")
 
         yt = "youtube.com" in job["source"] or "youtu.be" in job["source"]
         use_chat = feat["chat_replay"] and yt
@@ -223,7 +230,7 @@ def rerender(jid, ids):
         try:
             update(jid, lambda j: j.update(state="running", stage=3))
             T.plan(["Find webcam"] + [f"Clip {i}" for i in ids])
-            tr = json.loads((JOBS / jid / "transcript.json").read_text("utf-8"))
+            tr = analyze.load_transcript(JOBS / jid / "transcript.json")
             render_all(jid, tr, _logger(jid), only=set(ids))
             try: extras.write_otio(load(jid), JOBS / jid)
             except Exception: pass

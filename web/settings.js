@@ -35,7 +35,7 @@ function renderSettings(){
   <label>Captions<select id="d_captions">${opt(S.defaults.captions,[["pop","Pop"],["clean","Clean"],["fire","Fire"],["off","Off"]])}</select></label></div></div>
 
  <div class="card"><h3>Features</h3><div class="three">
-  ${[["llm_rating","AI rating and titles","Needs a connected model"],["ocr","Read on-screen text (gaming)","Spots KILL, VICTORY, ACE"],["chat_replay","YouTube chat spikes","Busy chat = good moment"],["webcam_detect","Find the webcam","Stacks webcam over gameplay"],["loudness","Balance loudness","Same volume across clips"]].map(([k,t,h])=>`<label class="chk"><input type="checkbox" id="f_${k}" ${S.features[k]?"checked":""}><span>${t}<small class="mu"> ${h}</small></span></label>`).join("")}</div></div>
+  ${[["llm_rating","AI rating and titles","Needs a connected model"],["ocr","Read on-screen text (gaming)","Spots KILL, VICTORY, ACE"],["chat_replay","YouTube chat spikes","Busy chat = good moment"],["webcam_detect","Find the webcam","Stacks webcam over gameplay"],["loudness","Balance loudness","Same volume across clips"],["native_only","Captions in the spoken language only","Removes stray English letters from Arabic, Hebrew, Russian and similar"]].map(([k,t,h])=>`<label class="chk"><input type="checkbox" id="f_${k}" ${S.features[k]?"checked":""}><span>${t}<small class="mu"> ${h}</small></span></label>`).join("")}</div></div>
 
  <div class="card"><h3>Speech and video</h3><div class="three">
   <label>Speech model<select id="t_model">${opt(S.transcribe.model,[["tiny","tiny (fastest)"],["base","base"],["small","small (default)"],["medium","medium"],["large-v3","large-v3 (best)"],["distil-large-v3","distil-large-v3 (fast + good)"]])}</select></label>
@@ -86,7 +86,7 @@ async function saveSettings(){
  const v=id=>document.getElementById(id).value,c=id=>document.getElementById(id).checked;
  const body={ai:{providers:readProvs(),roles:{rating:v("role_rating"),search:v("role_search")}},
   defaults:{mode:v("d_mode"),count:+v("d_count"),layout:v("d_layout"),minlen:+v("d_minlen"),maxlen:+v("d_maxlen"),captions:v("d_captions")},
-  features:Object.fromEntries(["llm_rating","ocr","chat_replay","webcam_detect","loudness"].map(k=>[k,c("f_"+k)])),
+  features:Object.fromEntries(["llm_rating","ocr","chat_replay","webcam_detect","loudness","native_only"].map(k=>[k,c("f_"+k)])),
   transcribe:{model:v("t_model"),language:v("t_language")||"auto",device:v("t_device")},
   video:{encoder:v("v_encoder"),lufs:+v("v_lufs"),caption_size:+v("v_caption_size"),max_height:+v("v_max_height")},
   youtube:{privacy:v("y_privacy")},obs:{host:v("o_host"),port:+v("o_port"),password:v("o_password")}};
