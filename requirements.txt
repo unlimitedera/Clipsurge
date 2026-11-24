@@ -1,0 +1,12 @@
+yt-dlp
+opencv-python-headless==4.11.0.86
+numpy
+fastapi
+uvicorn[standard]
+faster-whisper
+httpx
+python-multipart
+nvidia-cublas-cu12
+nvidia-cudnn-cu12
+google-api-python-client
+google-auth-oauthlib
