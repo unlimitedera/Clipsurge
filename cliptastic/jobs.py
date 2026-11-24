@@ -3,7 +3,7 @@
 import json, os, threading, time, traceback, uuid
 from concurrent.futures import ThreadPoolExecutor
 from .config import JOBS
-from . import analyze, render, extras
+from . import analyze, render, extras, settings
 
 _pool = ThreadPoolExecutor(max_workers=1)
 _lock = threading.RLock()
@@ -38,13 +38,12 @@ def list_jobs():
         except Exception: pass
     return out
 
-def create(source, settings):
+def create(source, opts):
     jid = time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4]
     (JOBS / jid).mkdir(parents=True)
     job = {"id": jid, "source": source, "title": source[-60:], "stage": 0, "state": "queued",
            "error": None, "log": [], "clips": [], "info": None,
-           "settings": {"mode": "auto", "count": 5, "minlen": 20, "maxlen": 55,
-                        "layout": "auto", "captions": "pop", **settings}}
+           "settings": {**settings.get()["defaults"], **opts}}
     save(job)
     _pool.submit(run_job, jid)
     return job
@@ -73,10 +72,11 @@ def run_job(jid):
         log(f"Transcript: {len(tr['words'])} words, language {tr['language']}")
         stage(2, "Scoring moments")
         extra = []
-        c = extras.chat_signal(job["source"], jd, info["duration"], log)
+        feat = settings.get()["features"]
+        c = extras.chat_signal(job["source"], jd, info["duration"], log) if feat["chat_replay"] else None
         if c is not None: extra.append(c)
         prog(0.2)
-        if st["mode"] == "gaming":
+        if st["mode"] == "gaming" and feat["ocr"]:
             P["note"] = "Reading on-screen text"
             o = extras.ocr_signal(video, info["duration"], log, prog=lambda f: prog(0.2 + 0.6 * f))
             if o is not None: extra.append(o)
@@ -99,6 +99,9 @@ def render_all(jid, tr, log, only=None):
     P = PROG.setdefault(jid, {"sp": 0, "note": "", "clips": {}})
     job = load(jid); st = job["settings"]; jd = JOBS / jid; video = jd / job["video"]
     ids = [c["id"] for c in job["clips"] if c["approved"] and (only is None or c["id"] in only)]
+    if "webcam" not in job and not settings.get()["features"]["webcam_detect"]:
+        update(jid, lambda x: x.update(webcam={"checked": True, "box": None}))
+        job = load(jid)
     if "webcam" not in job:   # find the webcam once per video, reuse for every clip
         P["note"] = "Looking for the webcam"; P["sp"] = 0
         try:

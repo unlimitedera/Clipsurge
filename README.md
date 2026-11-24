@@ -38,3 +38,14 @@ Stream-clipper (chat spikes), Chopify (scoring), StoryToolkitAI (transcript sear
 Not included yet (heavy ML, optional later): BoxMOT, SAM 2, SpeechBrain, Moment-DETR,
 Ultimate Vocal Remover, Decord. GUI apps (OpenCut, Aegisub, VideoCaptioner) are
 export targets, not dependencies.
+
+## Settings tab
+Connect any OpenAI-compatible model or agent (LM Studio, Ollama, llama.cpp, OpenRouter, OpenAI,
+or an agent API), choose which one rates moments and which one handles search, set defaults,
+toggle features, pick the speech model, encoder, loudness and caption size, and enter OBS and
+YouTube options. API keys are stored in data/settings.json (not committed) and shown masked.
+
+## Agent control (MCP)
+`python -m cliptastic.mcp_server` exposes create_job, list_jobs, get_job, search_moments,
+add_clip, render_pending, upload_to_youtube. The Settings tab shows the config to paste into
+an agent's MCP settings. Requires `mcp<2`.

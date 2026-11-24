@@ -6,8 +6,8 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from . import jobs, llm, youtube, extras
-from .config import JOBS, WEB, DATA
+from . import jobs, llm, youtube, extras, settings
+from .config import JOBS, WEB, DATA, ROOT
 
 app = FastAPI(title="Cliptastic")
 threading.Thread(target=extras.sched_loop, daemon=True).start()
@@ -17,9 +17,28 @@ def _clip(job, cid):
     if not c: raise HTTPException(404)
     return c
 
+@app.get("/api/settings")
+def get_settings():
+    return {"settings": settings.public(), "presets": llm.PRESETS, "youtube": youtube.state(),
+            "mcp": {"mcpServers": {"cliptastic": {"command": str(ROOT / ".venv/Scripts/python.exe"),
+                                                   "args": ["-m", "cliptastic.mcp_server"],
+                                                   "cwd": str(ROOT)}}}}
+
+@app.post("/api/settings")
+def set_settings(body: dict):
+    settings.save(body); return get_settings()
+
+@app.post("/api/ai/test")
+def ai_test(p: dict):
+    if p.get("api_key") == settings.MASK:
+        old = next((x for x in settings.get()["ai"]["providers"] if x["id"] == p.get("id")), {})
+        p["api_key"] = old.get("api_key", "")
+    return llm.test(p)
+
 @app.get("/api/status")
 def status():
-    return {"llm": llm.model_id(), "jobs": len(jobs.list_jobs())}
+    p = llm.provider("rating")
+    return {"llm": llm.model_id("rating"), "provider": p["name"] if p else None}
 
 @app.get("/api/jobs")
 def list_jobs():
@@ -76,6 +95,17 @@ def render_all(jid: str):
     if ids: jobs.rerender(jid, ids)
     return {"queued": ids}
 
+@app.post("/api/jobs/{jid}/rerender-all")
+def rerender_all(jid: str):
+    ids = []
+    def f(j):
+        for c in j["clips"]:
+            if c["approved"] and c["status"] not in ("queued", "rendering"):
+                c["status"] = "queued"; ids.append(c["id"])
+    jobs.update(jid, f)
+    if ids: jobs.rerender(jid, ids)
+    return {"queued": ids}
+
 class NewClip(BaseModel):
     start: float
     end: float
@@ -118,7 +148,8 @@ def yt_connect():
     return youtube.state()
 
 @app.post("/api/jobs/{jid}/clips/{cid}/upload")
-def upload_clip(jid: str, cid: int, privacy: str = "private"):
+def upload_clip(jid: str, cid: int, privacy: str = ""):
+    privacy = privacy or settings.get()["youtube"]["privacy"]
     c = _clip(jobs.load(jid), cid)
     if not c.get("file"): raise HTTPException(404, "render the clip first")
     try: url = youtube.upload(JOBS / jid / c["file"], c["title"], " ".join(c.get("tags", [])),

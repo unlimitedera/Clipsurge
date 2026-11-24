@@ -22,7 +22,7 @@ button.g{background:transparent;color:var(--tx);border:1px solid var(--ln);font-
 .bar{height:6px;background:var(--ln);border-radius:4px;overflow:hidden;margin-top:5px}
 .bar b{display:block;height:100%;background:linear-gradient(90deg,var(--lime),var(--vio));transition:width .5s linear}
 .step.d .bar b{background:var(--lime)}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;align-items:start}
 .clip{background:#10151c;border:1px solid var(--ln);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px}
 .clip.off{opacity:.5}
 .phone{aspect-ratio:9/16;background:#000;border-radius:14px;border:3px solid #2b3340;overflow:hidden;position:relative;display:grid;place-items:center;color:var(--mu)}
@@ -41,11 +41,31 @@ button.g{background:transparent;color:var(--tx);border:1px solid var(--ln);font-
 .err{color:var(--red)}a{color:var(--lime)}
 .jobs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .jobs span{cursor:pointer}.jobs .on{background:var(--lime);color:#111;border-color:var(--lime)}
-@media(max-width:800px){.layout{grid-template-columns:1fr}}
+.clip{min-width:0;overflow:hidden}
+.clip .row{flex-wrap:wrap;justify-content:flex-start}
+.clip button{white-space:nowrap;padding:6px 10px;font-size:12px}
+.clip .row.sp{justify-content:space-between;flex-wrap:nowrap}
+.clip input[type=number]{width:70px;min-width:0}
+.clip .links{display:flex;gap:10px;flex-wrap:wrap;font-size:12px}
+.clip .when{min-width:0;flex:1;font-size:12px}
+.nav{display:flex;gap:6px}.nav button{background:transparent;color:var(--mu);border:1px solid transparent;font-weight:700}
+.nav button.on{color:var(--lime);border-color:var(--ln);background:var(--sf)}
+h3{margin:0 0 6px;font-size:15px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.three{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+label{display:flex;flex-direction:column;gap:4px;color:var(--mu);font-size:12px}
+label.chk{flex-direction:row;align-items:flex-start;gap:8px;color:var(--tx)}label.chk small{display:block}
+#settingsView input[type=text],#settingsView input[type=number],#settingsView input[type=password],#settingsView select{width:100%;min-width:0;background:#0f141b;border:1px solid var(--ln);color:var(--tx);border-radius:8px;padding:8px 10px;font:inherit}
+.prov{border:1px solid var(--ln);border-radius:12px;padding:12px;margin-bottom:10px;background:#10151c}
+.res.ok{color:var(--lime)}.res.err{color:var(--red)}
+.code{background:#0a0e13;border:1px solid var(--ln);border-radius:8px;padding:10px;overflow:auto;font:12px ui-monospace,Consolas,monospace;margin:8px 0}
+.savebar{position:sticky;bottom:0;display:flex;justify-content:flex-end;gap:14px;align-items:center;padding:12px;background:linear-gradient(transparent,var(--bg) 40%)}
+@media(max-width:800px){.layout{grid-template-columns:1fr}.two,.three{grid-template-columns:1fr}}
 </style></head><body>
 <header><div><div class="logo">clip<b>tastic</b><em>!</em></div><div class="mu">Any video in. Share-ready shorts out. Runs on your PC.</div></div>
-<div class="mu" id="st"></div></header>
+<div class="nav"><button id="nv_studio" class="on" onclick="tab('studio')">Studio</button><button id="nv_settings" onclick="tab('settings')">Settings</button></div><div class="mu" id="st"></div></header>
 <main>
+<div id="settingsView" class="hide"></div>
+<div id="studio">
 <div class="card drop" id="drop">
  <input type="text" id="url" placeholder="Paste a link (YouTube, Twitch, ...) or drop a video file here">
  <input type="file" id="file" accept="video/*" style="display:none">
@@ -64,14 +84,15 @@ button.g{background:transparent;color:var(--tx);border:1px solid var(--ln);font-
   <div class="card"><b>Pipeline</b><div id="pipe"></div><div class="mu" id="info" style="margin-top:10px"></div></div>
   <div>
    <div class="card"><b id="jt"></b> <span id="jchips"></span><div class="err" id="jerr"></div><div class="log" id="jlog"></div>
-    <div style="margin-top:8px"><button id="rbtn" class="hide" onclick="renderPending()">Render pending clips</button></div></div>
+    <div style="margin-top:8px"><button id="rbtn" class="hide" onclick="renderPending()">Render pending clips</button> <button class="g" onclick="rerenderAll()">Re-render all clips</button></div></div>
    <div class="card"><div class="row"><input type="text" id="q" placeholder='Find a moment: "the funny story about the server"' onkeydown="if(event.key=='Enter')search()"><button class="g" onclick="search()">Search</button>
     <span id="tl" class="hide"><a id="otio" download>Timeline (.otio)</a> &nbsp; <a id="edl" download>EDL</a></span></div><div id="hits"></div></div>
    <div class="grid" id="grid"></div>
   </div>
  </div>
 </div>
-</main>
+</div></main>
+<script src="/settings.js"></script>
 <script>
 const $=id=>document.getElementById(id);let cur=null,timer=null,lastJob=null;
 const STAGES=["Get video","Transcribe","Find moments","Crop + captions","Export"];
@@ -82,6 +103,10 @@ const d=$("drop");["dragover","dragenter"].forEach(e=>d.addEventListener(e,x=>{x
 ["dragleave","drop"].forEach(e=>d.addEventListener(e,x=>{x.preventDefault();d.classList.remove("over")}));
 d.addEventListener("drop",x=>{if(x.dataTransfer.files[0]){file.files=x.dataTransfer.files;file.onchange()}});
 const api=(u,o)=>fetch(u,o);
+function tab(t){$("studio").classList.toggle("hide",t!="studio");$("settingsView").classList.toggle("hide",t!="settings");
+ $("nv_studio").classList.toggle("on",t=="studio");$("nv_settings").classList.toggle("on",t=="settings");if(t=="settings")loadSettings()}
+function refreshStatus(){api("/api/status").then(r=>r.json()).then(s=>$("st").textContent=s.llm?"AI: "+s.llm+" ("+s.provider+")":"AI: not connected (Settings)")}
+async function rerenderAll(){await api(`/api/jobs/${cur}/rerender-all`,{method:"POST"});poll()}
 const post=(u,b)=>api(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});
 
 async function start(){
@@ -136,16 +161,17 @@ function makeClip(c){
  el.innerHTML=`<div class="phone"><div class="vslot"></div>
   <div class="ph"><span class="pt">queued</span><div class="bar"><b style="width:0%"></b></div></div>
   <div class="badge hide"><span></span><div class="bar"><b style="width:0%"></b></div></div></div>
-  <div class="row"><input class="title" data-k="title"><span class="score"></span></div>
+  <div class="row sp"><input class="title" data-k="title" style="flex:1;min-width:0"><span class="score"></span></div>
   <div class="mu tags"></div>
   <div class="row"><label class="mu">Start <input type="number" step="0.5" data-k="start"></label><label class="mu">End <input type="number" step="0.5" data-k="end"></label></div>
-  <div class="row"><label class="mu"><input type="checkbox" class="keep"> Keep</label><button class="g rr">Re-render</button><span class="links"></span></div>
-  <div class="row sch hide"><input type="datetime-local" class="when" style="flex:1"><button class="g sb">Schedule</button></div>`;
+  <div class="row sp"><label class="mu" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" class="keep"> Keep</label><button class="g rr">Re-render</button><button class="g ytb hide">Upload</button></div>
+  <div class="links"></div>
+  <div class="row sch hide"><input type="datetime-local" class="when"><button class="g sb">Schedule</button></div>`;
  const id=c.id;
  el.querySelector('[data-k=title]').onchange=e=>edit(id,{title:e.target.value});
  el.querySelector('.keep').onchange=e=>edit(id,{approved:e.target.checked});
  el.querySelector('.rr').onclick=()=>edit(id,{start:+el.querySelector('[data-k=start]').value,end:+el.querySelector('[data-k=end]').value},true);
- el.querySelector('.sb').onclick=()=>sched(id);
+ el.querySelector('.sb').onclick=()=>sched(id);el.querySelector('.ytb').onclick=()=>up(id);
  return el}
 function paintClip(el,c,j){
  el.classList.toggle("off",!c.approved);
@@ -167,8 +193,9 @@ function paintClip(el,c,j){
  bd.classList.toggle("hide",!(hasVideo&&busy));
  if(hasVideo&&busy){bd.querySelector("span").textContent=c.status=="rendering"?"Re-rendering "+pct+"%":"Queued";bd.querySelector("b").style.width=pct+"%"}
  const L=el.querySelector(".links");
- const lh=c.status=="done"&&c.file?(c.youtube?`<a href="${c.youtube}" target="_blank">YouTube</a> `:`<a href="#" class="yt">YouTube</a> `)+`<a href="/files/${j.id}/${c.file}" download>MP4</a> <a href="/files/${j.id}/${c.file.replace(".mp4",".srt")}" download>SRT</a> <a href="/files/${j.id}/clips/clip${c.id}.ass" download>ASS</a>`:"";
- if(L.dataset.h!==lh){L.dataset.h=lh;L.innerHTML=lh;const y=L.querySelector(".yt");if(y)y.onclick=e=>{e.preventDefault();up(c.id)}}
+ const lh=c.status=="done"&&c.file?(c.youtube?`<a href="${c.youtube}" target="_blank">On YouTube</a> `:"")+`<a href="/files/${j.id}/${c.file}" download>MP4</a> <a href="/files/${j.id}/${c.file.replace(".mp4",".srt")}" download>SRT</a> <a href="/files/${j.id}/clips/clip${c.id}.ass" download>ASS</a>`:"";
+ if(L.dataset.h!==lh){L.dataset.h=lh;L.innerHTML=lh}
+ el.querySelector(".ytb").classList.toggle("hide",!(c.status=="done"&&!c.youtube));
  el.querySelector(".sch").classList.toggle("hide",!(c.status=="done"&&!c.youtube));
  el.querySelector(".rr").disabled=busy;
 }
@@ -197,6 +224,5 @@ async function rec(){
  if(!r.ok){alert((await r.json()).detail);return}
  recording=!recording;$("rec").innerHTML=recording?"&#9632; Stop + clip":"&#9679; Record (OBS)";
  if(!recording)select((await r.json()).id)}
-api("/api/status").then(r=>r.json()).then(s=>$("st").textContent=s.llm?"Local AI: "+s.llm:"Local AI: off (using audio + speech scoring)");
-refreshJobs();
+refreshStatus();refreshJobs();loadSettings();
 </script></body></html>

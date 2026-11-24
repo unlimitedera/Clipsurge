@@ -4,6 +4,7 @@ import json, re, threading, time
 from pathlib import Path
 import numpy as np
 from .config import DATA, FFMPEG
+from . import settings
 
 # ---------- signal: YouTube chat replay spikes (Stream-clipper idea) ----------
 def chat_signal(url, jobdir, duration, log):
@@ -107,10 +108,8 @@ def write_otio(job, jobdir):
 # ---------- OBS recording (obs-websocket v5) ----------
 def _obs():
     import obsws_python as obs
-    cfg = DATA.parent / "secrets" / "obs.json"
-    c = json.loads(cfg.read_text()) if cfg.exists() else {}
-    return obs.ReqClient(host=c.get("host", "localhost"), port=c.get("port", 4455),
-                         password=c.get("password", ""), timeout=5)
+    c = settings.get()["obs"]
+    return obs.ReqClient(host=c["host"], port=int(c["port"]), password=c["password"], timeout=5)
 
 def obs_start():
     _obs().start_record()
@@ -126,7 +125,7 @@ STOP = set("the a an and or of to in on is it that this for with as at by be are
 def search(tr, q, minlen=20, maxlen=55, k=6):
     from . import llm
     terms = {w for w in re.findall(r"[a-z0-9']+", q.lower()) if w not in STOP}
-    ex = llm.chat_json("Reply ONLY with a JSON array of up to 10 synonyms or related words.", q)
+    ex = llm.chat_json("Reply ONLY with a JSON array of up to 10 synonyms or related words.", q, role="search")
     if isinstance(ex, list):
         terms |= {str(w).lower() for w in ex}
     segs = tr["segments"]
@@ -182,7 +181,7 @@ def sched_loop():
                         job = jobs.load(it["job"])
                         c = next(c for c in job["clips"] if c["id"] == it["clip"])
                         url = youtube.upload(JOBS / it["job"] / c["file"], c["title"],
-                                             " ".join(c.get("tags", [])), c.get("tags"), "private")
+                                             " ".join(c.get("tags", [])), c.get("tags"), settings.get()["youtube"]["privacy"])
                         def setu(j, url=url, cid=it["clip"]):
                             next(x for x in j["clips"] if x["id"] == cid)["youtube"] = url
                         jobs.update(it["job"], setu)

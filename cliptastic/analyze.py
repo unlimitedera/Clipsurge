@@ -4,7 +4,7 @@ import json, re, shutil, subprocess
 from pathlib import Path
 import numpy as np
 from .config import FFMPEG, FFPROBE, WHISPER_MODEL
-from . import llm
+from . import llm, settings
 
 # ---------- 1. ingest ----------
 def probe(path):
@@ -70,15 +70,23 @@ def transcribe(video, jobdir, log, prog=None, duration=None):
     from faster_whisper import WhisperModel
     with wave.open(str(wav)) as wf:
         audio = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16).astype(np.float32) / 32768
-    try:
-        model = WhisperModel(WHISPER_MODEL, device="cuda", compute_type="float16")
-        log(f"Whisper '{WHISPER_MODEL}' on GPU")
-        segs_iter, info = model.transcribe(audio, word_timestamps=True, vad_filter=True)
-        raw = _collect(segs_iter, prog, duration)
-    except Exception as e:
-        log(f"GPU unavailable ({type(e).__name__}), using CPU")
-        model = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
-        segs_iter, info = model.transcribe(audio, word_timestamps=True, vad_filter=True)
+    ts = settings.get()["transcribe"]
+    name = ts.get("model") or WHISPER_MODEL
+    lang = None if ts.get("language", "auto") == "auto" else ts["language"]
+    kw = dict(word_timestamps=True, vad_filter=True, language=lang)
+    raw = None
+    if ts.get("device", "auto") in ("auto", "cuda"):
+        try:
+            model = WhisperModel(name, device="cuda", compute_type="float16")
+            log(f"Whisper '{name}' on GPU")
+            segs_iter, info = model.transcribe(audio, **kw)
+            raw = _collect(segs_iter, prog, duration)
+        except Exception as e:
+            log(f"GPU unavailable ({type(e).__name__}), using CPU")
+    if raw is None:
+        model = WhisperModel(name, device="cpu", compute_type="int8")
+        log(f"Whisper '{name}' on CPU")
+        segs_iter, info = model.transcribe(audio, **kw)
         raw = _collect(segs_iter, prog, duration)
     segs, words = [], []
     for s in raw:
@@ -195,16 +203,19 @@ def _title(c):
     return (first[:70] + "...") if len(first) > 72 else first
 
 def _llm_rate(cands, mode, log):
-    if not llm.model_id():
-        log("No local LLM running: using heuristic scoring only")
+    if not settings.get()["features"]["llm_rating"]:
         return {}
-    log("Rating moments with local LLM...")
+    if not llm.model_id("rating"):
+        log("No AI model connected: using audio + speech scoring only")
+        return {}
+    p = llm.provider("rating")
+    log(f"Rating moments with {p['name']}...")
     items = [{"id": i, "text": c["text"][:500]} for i, c in enumerate(cands)]
     res = llm.chat_json(
         "You pick viral short-video moments. For each candidate rate 0-100 how well it works "
         "as a standalone short (hook, emotion, surprise, clear payoff). Reply ONLY with a JSON "
         'array: [{"id":0,"score":0-100,"title":"max 8 words catchy title","hashtags":["#a","#b"]}]',
-        f"Video type: {mode}\nCandidates:\n{json.dumps(items)}")
+        f"Video type: {mode}\nCandidates:\n{json.dumps(items)}", role="rating")
     if not isinstance(res, list):
         log("LLM reply unusable: heuristic scoring only")
         return {}

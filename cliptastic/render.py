@@ -6,6 +6,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from .config import FFMPEG
+from . import settings
 
 W, H = 1080, 1920
 _ENV = dict(os.environ, PATH=str(Path(FFMPEG).parent) + os.pathsep + os.environ.get("PATH", ""))
@@ -115,6 +116,7 @@ STYLES = {  # font, size, text BGR, highlight BGR, outline
 
 def write_ass(path, words, start, end, style="pop"):
     font, size, col, hi, ol = STYLES.get(style, STYLES["pop"])
+    size = int(size * settings.get()["video"]["caption_size"] / 84)
     head = (f"[Script Info]\nScriptType: v4.00+\nPlayResX: {W}\nPlayResY: {H}\n\n"
             "[V4+ Styles]\nFormat: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,"
             "OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,"
@@ -156,15 +158,21 @@ def _nvenc_ok():
     return r.returncode == 0
 
 def _enc():
-    if _nvenc_ok():
+    choice = settings.get()["video"]["encoder"]
+    if choice == "nvenc" or (choice == "auto" and _nvenc_ok()):
         return ["-c:v", "h264_nvenc", "-preset", "p5", "-cq", "21", "-b:v", "0"]
     return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20"]
 
 def _normalize(raw, final):
+    cfg = settings.get()
+    if not cfg["features"]["loudness"]:
+        shutil.copy2(raw, final)
+        return True
+    lufs = str(cfg["video"]["lufs"])
     """Loudness balance to -14 LUFS with ffmpeg-normalize; falls back to the raw file."""
     try:
         r = subprocess.run([sys.executable, "-m", "ffmpeg_normalize", str(raw), "-o", str(final), "-f", "-nt", "ebu",
-                        "-t", "-14", "-tp", "-1.5", "-c:a", "aac", "-b:a", "160k"],
+                        "-t", lufs, "-tp", "-1.5", "-c:a", "aac", "-b:a", "160k"],
                            capture_output=True, text=True, env=_ENV)
         good = r.returncode == 0 and Path(final).exists()
     except Exception:
