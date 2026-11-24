@@ -49,7 +49,11 @@ def status():
 
 @app.get("/api/jobs")
 def list_jobs():
-    return [{k: j[k] for k in ("id", "title", "state")} for j in jobs.list_jobs()]
+    return [{k: j[k] for k in ("id", "title", "state", "overall")} for j in jobs.list_jobs()]
+
+@app.post("/api/jobs/{jid}/cancel")
+def cancel_job(jid: str):
+    return {"cancelled": jobs.cancel(jid)}
 
 @app.get("/api/jobs/{jid}")
 def get_job(jid: str):

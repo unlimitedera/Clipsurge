@@ -43,7 +43,8 @@ function renderSettings(){
   <label>Run speech on<select id="t_device">${opt(S.transcribe.device,[["auto","Auto (GPU if possible)"],["cuda","GPU"],["cpu","CPU"]])}</select></label>
   <label>Video encoder<select id="v_encoder">${opt(S.video.encoder,[["auto","Auto"],["nvenc","NVIDIA GPU (NVENC)"],["x264","CPU (x264)"]])}</select></label>
   <label>Loudness target (LUFS)<input type="number" id="v_lufs" value="${S.video.lufs}"></label>
-  <label>Caption size<input type="number" id="v_caption_size" min="40" max="140" value="${S.video.caption_size}"></label></div>
+  <label>Caption size<input type="number" id="v_caption_size" min="40" max="140" value="${S.video.caption_size}"></label>
+  <label>Download quality (max)<select id="v_max_height">${opt(S.video.max_height,[[480,"480p (fastest)"],[720,"720p"],[1080,"1080p (default)"],[1440,"1440p"],[2160,"4K (slow, huge)"]])}</select></label></div>
   <p class="mu">A new speech model downloads the first time it is used.</p></div>
 
  <div class="card"><h3>Accounts</h3><div class="three">
@@ -87,7 +88,7 @@ async function saveSettings(){
   defaults:{mode:v("d_mode"),count:+v("d_count"),layout:v("d_layout"),minlen:+v("d_minlen"),maxlen:+v("d_maxlen"),captions:v("d_captions")},
   features:Object.fromEntries(["llm_rating","ocr","chat_replay","webcam_detect","loudness"].map(k=>[k,c("f_"+k)])),
   transcribe:{model:v("t_model"),language:v("t_language")||"auto",device:v("t_device")},
-  video:{encoder:v("v_encoder"),lufs:+v("v_lufs"),caption_size:+v("v_caption_size")},
+  video:{encoder:v("v_encoder"),lufs:+v("v_lufs"),caption_size:+v("v_caption_size"),max_height:+v("v_max_height")},
   youtube:{privacy:v("y_privacy")},obs:{host:v("o_host"),port:+v("o_port"),password:v("o_password")}};
  const r=await fetch("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
  const m=document.getElementById("savemsg");

@@ -215,7 +215,7 @@ def render_clip(video, info, tr, clip, out_path, layout="auto", cap_style="pop",
     fw, fh = info["width"], info["height"]
     ts = xs = cam = None
     used = layout
-    if prog: prog(0.02)
+    if prog: prog(0.02, "Finding webcam and faces")
     if layout in ("auto", "follow", "stack"):
         known = webcam is not None and webcam.get("checked")
         cam = tuple(webcam["box"]) if known and webcam.get("box") else None
@@ -234,7 +234,7 @@ def render_clip(video, info, tr, clip, out_path, layout="auto", cap_style="pop",
             else:
                 used = "follow" if ratio >= 0.4 else "fit"
         log(f"clip {clip['id']}: webcam {'yes' if cam else 'no'} -> {used}")
-    if prog: prog(0.08)
+    if prog: prog(0.08, "Encoding video")
 
     if used == "follow":
         cap = cv2.VideoCapture(str(video))
@@ -297,10 +297,10 @@ def render_clip(video, info, tr, clip, out_path, layout="auto", cap_style="pop",
                "-filter_complex", fc, "-map", "[v]", "-map", "0:a?", *_enc(),
                "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", raw.name]
         _run_ffmpeg(cmd, work, dur, prog, 0.08, 0.9)
-    if prog: prog(0.93)
+    if prog: prog(0.93, "Balancing loudness")
     ok = _normalize(raw, out_path)
     raw.unlink(missing_ok=True)
-    if prog: prog(1.0)
+    if prog: prog(1.0, "Done")
     if not ok:
         log(f"clip {clip['id']}: loudness step skipped")
     return used

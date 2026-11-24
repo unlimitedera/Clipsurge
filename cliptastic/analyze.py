@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 from .config import FFMPEG, FFPROBE, WHISPER_MODEL
 from . import llm, settings
+from .progress import fmt_time
 
 # ---------- 1. ingest ----------
 def probe(path):
@@ -16,55 +17,108 @@ def probe(path):
     return {"duration": float(j["format"]["duration"]),
             "width": int(v["width"]), "height": int(v["height"])}
 
-def ingest(src, jobdir, log, prog=None):
+def ingest(src, jobdir, log, T=None):
     jobdir = Path(jobdir)
     title = None
     if re.match(r"^https?://", src):
         import yt_dlp
+        from .progress import fmt_bytes, fmt_time
+        h = int(settings.get()["video"].get("max_height", 1080))
+        T and T.set("Read video info", None, "Contacting the site")
         log("Downloading with yt-dlp...")
+
+        def hook(d):
+            if not T: return
+            T.check()
+            kind = "Download video" if (d.get("info_dict") or {}).get("vcodec") not in (None, "none") else "Download audio"
+            if d["status"] == "downloading":
+                got = d.get("downloaded_bytes") or 0
+                tot = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
+                sp = d.get("speed"); eta = d.get("eta")
+                det = f"{fmt_bytes(got)} of {fmt_bytes(tot)}" if tot else fmt_bytes(got)
+                if sp: det += f" · {fmt_bytes(sp)}/s"
+                if eta: det += f" · {fmt_time(eta)} left"
+                T.set(kind, (got / tot) if tot else None, det)
+            elif d["status"] == "finished":
+                T.done(kind, "done")
+
+        def pp(d):
+            if T and d.get("postprocessor") in ("Merger", "FFmpegMerger", "VideoConvertor"):
+                (T.set if d["status"] == "started" else T.done)("Merge", *(([None, "Joining video and audio"]) if d["status"] == "started" else []))
+
         opts = {"outtmpl": str(jobdir / "source.%(ext)s"), "noplaylist": True,
-                "format": "bv*[height<=1080]+ba/b[height<=1080]/b",
+                "format": f"bv*[height<={h}]+ba/b[height<={h}]/b",
                 "merge_output_format": "mp4", "quiet": True, "no_warnings": True,
                 "ffmpeg_location": str(Path(FFMPEG).parent),
-                "progress_hooks": [lambda d: prog and d.get("status") == "downloading" and prog(
-                    d.get("downloaded_bytes", 0) / (d.get("total_bytes") or d.get("total_bytes_estimate") or 1))]}
+                "progress_hooks": [hook], "postprocessor_hooks": [pp],
+                "socket_timeout": 20, "retries": 10, "fragment_retries": 10,
+                "http_chunk_size": 10 * 1024 * 1024,      # avoids YouTube throttling stalls
+                "continuedl": True}
+        node = shutil.which("node")
+        if node:
+            opts["js_runtimes"] = {"node": {"path": node}}
         with yt_dlp.YoutubeDL(opts) as y:
-            info = y.extract_info(src, download=True)
+            info = y.extract_info(src, download=False)
             title = info.get("title")
-        files = [p for p in jobdir.glob("source.*") if p.suffix not in (".part", ".json")]
+            T and T.done("Read video info", title or "")
+            y.process_ie_result(info, download=True)
+        files = [p for p in jobdir.glob("source.*") if p.suffix not in (".part", ".json", ".ytdl")]
         if not files:
             raise RuntimeError("download produced no file")
         path = files[0]
+        if T:
+            for n in ("Download video", "Download audio", "Merge"):
+                T.done(n)
     else:
         p = Path(src.strip('"'))
         if not p.exists():
             raise FileNotFoundError(src)
+        T and T.set("Read file", 0.5, p.name)
         path = jobdir / ("source" + p.suffix)
+        T and T.done("Read file")
         if p.resolve() != path.resolve():
+            T and T.set("Copy file", None, "Copying to the project folder")
             shutil.copy2(p, path)
+        T and T.done("Copy file")
         title = p.stem
     return path, title, probe(path)
 
 # ---------- 2. transcribe ----------
-def extract_audio(video, wav):
-    subprocess.run([FFMPEG, "-y", "-v", "error", "-i", str(video), "-vn", "-ac", "1",
-                    "-ar", "16000", str(wav)], check=True)
+def extract_audio(video, wav, duration=None, T=None):
+    p = subprocess.Popen([FFMPEG, "-y", "-v", "error", "-progress", "pipe:1", "-nostats", "-i", str(video),
+                          "-vn", "-ac", "1", "-ar", "16000", str(wav)],
+                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    for line in p.stdout:
+        if T and duration and line.startswith("out_time_us="):
+            try:
+                f = int(line.split("=")[1]) / 1e6 / duration
+                T.set("Extract audio", f, f"{int(min(f, 1) * 100)}% of the soundtrack")
+            except ValueError:
+                pass
+    p.wait()
+    if p.returncode:
+        raise RuntimeError("could not extract audio")
 
-def _collect(it, prog, duration):
+def _collect(it, T, duration):
     out = []
     for sg in it:
         out.append(sg)
-        if prog and duration:
-            prog(sg.end / duration)
+        if T and duration:
+            T.set("Transcribe speech", sg.end / duration,
+                  f"{fmt_time(sg.end)} of {fmt_time(duration)} · {len(out)} phrases")
     return out
 
-def transcribe(video, jobdir, log, prog=None, duration=None):
+def transcribe(video, jobdir, log, T=None, duration=None):
     jobdir = Path(jobdir)
     cache = jobdir / "transcript.json"
     if cache.exists():
+        if T:
+            for n in ("Extract audio", "Load speech model", "Transcribe speech"):
+                T.done(n, "already done")
         return json.loads(cache.read_text("utf-8"))
     wav = jobdir / "audio.wav"
-    extract_audio(video, wav)
+    extract_audio(video, wav, duration, T)
+    T and T.done("Extract audio")
     import wave
     import numpy as np
     from faster_whisper import WhisperModel
@@ -77,17 +131,21 @@ def transcribe(video, jobdir, log, prog=None, duration=None):
     raw = None
     if ts.get("device", "auto") in ("auto", "cuda"):
         try:
+            T and T.set("Load speech model", None, f"Loading {name} on GPU (first use downloads it)")
             model = WhisperModel(name, device="cuda", compute_type="float16")
+            T and T.done("Load speech model", f"{name} on GPU")
             log(f"Whisper '{name}' on GPU")
             segs_iter, info = model.transcribe(audio, **kw)
-            raw = _collect(segs_iter, prog, duration)
+            raw = _collect(segs_iter, T, duration)
         except Exception as e:
             log(f"GPU unavailable ({type(e).__name__}), using CPU")
     if raw is None:
+        T and T.set("Load speech model", None, f"Loading {name} on CPU")
         model = WhisperModel(name, device="cpu", compute_type="int8")
+        T and T.done("Load speech model", f"{name} on CPU")
         log(f"Whisper '{name}' on CPU")
         segs_iter, info = model.transcribe(audio, **kw)
-        raw = _collect(segs_iter, prog, duration)
+        raw = _collect(segs_iter, T, duration)
     segs, words = [], []
     for s in raw:
         segs.append({"s": s.start, "e": s.end, "text": s.text.strip()})
@@ -128,8 +186,11 @@ def _pct(x):
         return np.ones(len(x))
     return x.argsort().argsort() / (len(x) - 1)
 
-def find_moments(video, tr, duration, mode, count, minlen, maxlen, log, extra=None):
+def find_moments(video, tr, duration, mode, count, minlen, maxlen, log, extra=None, T=None):
+    T and T.set("Loudness map", None, "Measuring volume second by second")
     energy = audio_energy(video)
+    T and T.done("Loudness map")
+    T and T.set("Score moments", 0.1, "Building candidate clips")
     z = (energy - energy.mean()) / (energy.std() + 1e-6)
     for ex in (extra or []):   # chat spikes, on-screen text hits
         n = min(len(z), len(ex))
@@ -175,8 +236,11 @@ def find_moments(video, tr, duration, mode, count, minlen, maxlen, log, extra=No
             keep.append(c)
         if len(keep) >= min(24, max(count * 3, count)):
             break
-    # optional LLM rating
+    T and T.done("Score moments", f"{len(cands)} candidates")
+    if T and any(x["name"] == "AI rating" for x in T.subs): T.set("AI rating", None, "Waiting for the model")
     rated = _llm_rate(keep, mode, log)
+    if T and any(x["name"] == "AI rating" for x in T.subs): T.done("AI rating", "rated" if rated else "no reply")
+    T and T.set("Pick best", 0.5, f"Choosing the top {count}")
     for n, c in enumerate(keep):
         r = rated.get(n)
         if r:
@@ -193,6 +257,7 @@ def find_moments(video, tr, duration, mode, count, minlen, maxlen, log, extra=No
         out.append({"id": n + 1, "start": round(c["s"], 2), "end": round(c["e"], 2),
                     "score": c["score"], "title": c["title"], "tags": c["tags"],
                     "text": c["text"][:400], "approved": True, "status": "pending"})
+    T and T.done("Pick best", f"{len(out)} moments")
     return out
 
 def _title(c):

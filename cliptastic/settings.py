@@ -12,7 +12,7 @@ DEFAULTS = {
     "features": {"llm_rating": True, "ocr": True, "chat_replay": True,
                  "webcam_detect": True, "loudness": True},
     "transcribe": {"model": "small", "language": "auto", "device": "auto"},
-    "video": {"encoder": "auto", "lufs": -14, "caption_size": 84},
+    "video": {"encoder": "auto", "lufs": -14, "caption_size": 84, "max_height": 1080},
     "ai": {
         "providers": [{"id": "lmstudio", "name": "LM Studio (local)", "kind": "lmstudio",
                        "base_url": "http://127.0.0.1:1234/v1", "api_key": "", "model": "",
