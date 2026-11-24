@@ -10,6 +10,7 @@ from . import jobs, llm, youtube, extras, settings
 from .config import JOBS, WEB, DATA, ROOT
 
 app = FastAPI(title="Cliptastic")
+jobs.mark_orphans()
 threading.Thread(target=extras.sched_loop, daemon=True).start()
 
 def _clip(job, cid):
@@ -50,6 +51,10 @@ def status():
 @app.get("/api/jobs")
 def list_jobs():
     return [{k: j[k] for k in ("id", "title", "state", "overall")} for j in jobs.list_jobs()]
+
+@app.post("/api/jobs/{jid}/resume")
+def resume_job(jid: str):
+    return jobs.public(jobs.resume(jid))
 
 @app.post("/api/jobs/{jid}/cancel")
 def cancel_job(jid: str):

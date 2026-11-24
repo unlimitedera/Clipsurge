@@ -20,6 +20,18 @@ def probe(path):
 def ingest(src, jobdir, log, T=None):
     jobdir = Path(jobdir)
     title = None
+    have = [p for p in jobdir.glob("source.*") if p.suffix not in (".part", ".json", ".ytdl", ".tmp")]
+    if have and not list(jobdir.glob("*.part")):          # resume: download already finished
+        try:
+            info = probe(have[0])
+            if T:
+                for n in ("Read video info", "Download video", "Download audio", "Merge", "Read file", "Copy file"):
+                    T.done(n, "already done")
+            return have[0], None, info
+        except Exception:
+            pass
+    for p in jobdir.glob("*.part"):                       # stale partial download: yt-dlp resumes it
+        pass
     if re.match(r"^https?://", src):
         import yt_dlp
         from .progress import fmt_bytes, fmt_time

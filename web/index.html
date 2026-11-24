@@ -158,8 +158,8 @@ function paint(j){
   const subs=st=="a"&&j.subs?j.subs.map(subRow).join(""):"";
   return `<div class="step ${st}"><div class="t"><span>${i+1}. ${s}</span><span>${st?pct+"%":""}</span></div><div class="bar"><b style="width:${pct}%"></b></div>${subs?`<div class="subs">${subs}</div>`:""}</div>`}).join("");
  const warn=running&&j.idle>20?`<div class="warn">No new data for ${j.idle}s. The site may be throttling. Cancel and retry, or lower Download quality in Settings.</div>`:"";
- const state=done?"Finished":(j.state=="cancelled"?"Cancelled":(j.state=="error"?"Failed":esc((j.note||"Starting")+(j.detail?" · "+j.detail:""))));
- const pipe=`<div class="overall"><div class="t"><b>Overall</b><b>${Math.round(j.overall||0)}%</b></div><div class="bar big"><b style="width:${j.overall||0}%"></b></div><div class="now">${state}</div>${warn}${running?`<button class="g cx" onclick="cancelJob()">Cancel</button>`:""}</div>${stages}`;
+ const state=done?"Finished":(j.state=="cancelled"?"Cancelled":(j.state=="interrupted"?"Interrupted by an app restart":(j.state=="error"?"Failed":esc((j.note||"Starting")+(j.detail?" · "+j.detail:"")))));
+ const pipe=`<div class="overall"><div class="t"><b>Overall</b><b>${Math.round(j.overall||0)}%</b></div><div class="bar big"><b style="width:${j.overall||0}%"></b></div><div class="now">${state}</div>${warn}${running?`<button class="g cx" onclick="cancelJob()">Cancel</button>`:(["interrupted","cancelled","error"].includes(j.state)?`<button class="cx" onclick="resumeJob()">Resume</button>`:"")}</div>${stages}`;
  setHTML("pipe",pipe);
  setHTML("info",j.info?fmt(j.info.duration)+" · "+j.info.width+"x"+j.info.height:"");
  $("jt").textContent=j.title||"";
@@ -225,6 +225,7 @@ async function edit(id,body,render){
  const r=await post(`/api/jobs/${cur}/clips/${id}?render=${render?"true":"false"}`,body);
  if(!r.ok)alert((await r.json()).detail);poll()}
 async function cancelJob(){if(confirm("Cancel this job?")){await api(`/api/jobs/${cur}/cancel`,{method:"POST"});poll()}}
+async function resumeJob(){await api(`/api/jobs/${cur}/resume`,{method:"POST"});poll()}
 async function renderPending(){await api(`/api/jobs/${cur}/render`,{method:"POST"});poll()}
 async function search(){
  const q=$("q").value.trim();if(!q||!cur)return;

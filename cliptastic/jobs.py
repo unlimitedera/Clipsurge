@@ -60,6 +60,23 @@ def create(source, opts):
     _pool.submit(run_job, jid)
     return job
 
+def mark_orphans():
+    """Called at server start: a job left 'running' lost its worker when the server restarted."""
+    for p in JOBS.glob("*/job.json"):
+        try:
+            j = json.loads(p.read_text("utf-8"))
+            if j.get("state") in ("running", "queued"):
+                j["state"] = "interrupted"; j["error"] = "Interrupted (the app was restarted). Press Resume."
+                p.write_text(json.dumps(j, indent=1), "utf-8")
+        except Exception:
+            pass
+
+def resume(jid):
+    job = update(jid, lambda j: j.update(state="queued", error=None))
+    PROG[jid] = Tracker(jid)
+    _pool.submit(run_job, jid)
+    return job
+
 def cancel(jid):
     T = PROG.get(jid)
     if T: T.cancel = True
