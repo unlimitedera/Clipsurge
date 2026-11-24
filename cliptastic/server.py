@@ -20,9 +20,16 @@ def _clip(job, cid):
 @app.get("/api/settings")
 def get_settings():
     return {"settings": settings.public(), "presets": llm.PRESETS, "youtube": youtube.state(),
-            "mcp": {"mcpServers": {"cliptastic": {"command": str(ROOT / ".venv/Scripts/python.exe"),
-                                                   "args": ["-m", "cliptastic.mcp_server"],
-                                                   "cwd": str(ROOT)}}}}
+            "mcp": {
+                "json": {"mcpServers": {"cliptastic": {
+                    "command": str(ROOT / ".venv/Scripts/python.exe").replace("\\", "/"),
+                    "args": ["-m", "cliptastic.mcp_server"],
+                    "env": {"PYTHONPATH": str(ROOT).replace("\\", "/")}}}},
+                "claude_code": f'claude mcp add cliptastic --env PYTHONPATH={str(ROOT).replace(chr(92), "/")} -- '
+                               f'{str(ROOT / ".venv/Scripts/python.exe").replace(chr(92), "/")} -m cliptastic.mcp_server',
+                "hermes": f'hermes mcp add cliptastic --command "{str(ROOT / ".venv/Scripts/python.exe").replace(chr(92), "/")}" '
+                          f'--env PYTHONPATH={str(ROOT).replace(chr(92), "/")} --args -m cliptastic.mcp_server'}}
+
 
 @app.post("/api/settings")
 def set_settings(body: dict):

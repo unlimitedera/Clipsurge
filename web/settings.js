@@ -23,8 +23,8 @@ function renderSettings(){
   <label>Moment search<select id="role_search">${opt(S.ai.roles.search,roleOpts)}</select></label></div></div>
 
  <div class="card"><h3>Let an agent control Cliptastic (MCP)</h3>
-  <p class="mu">Add this to your agent's MCP settings (Hermes, Claude Desktop, any MCP client). The agent can then start jobs, check progress, search moments, add clips and upload. Keep this app running.</p>
-  <pre id="mcpcfg" class="code">${E(JSON.stringify(MCPCFG,null,2))}</pre><button class="g" onclick="navigator.clipboard.writeText(document.getElementById('mcpcfg').textContent);this.textContent='Copied'">Copy</button></div>
+  <p class="mu">Works with Hermes, Claude Code, Claude Desktop and any MCP client. The agent can start jobs, check progress, search moments, add clips and upload. Keep this app running.</p>
+  ${[["Hermes (run in a terminal)",MCPCFG.hermes],["Claude Code (run in a terminal)",MCPCFG.claude_code],["Claude Desktop / other clients (JSON)",JSON.stringify(MCPCFG.json,null,2)]].map(([t,c],i)=>`<div class="mu" style="margin-top:8px">${t}</div><pre class="code" id="mcp${i}">${E(c)}</pre><button class="g" onclick="navigator.clipboard.writeText(document.getElementById('mcp${i}').textContent);this.textContent='Copied'">Copy</button>`).join("")}</div>
 
  <div class="card"><h3>Defaults for new clips</h3><div class="three">
   <label>Video type<select id="d_mode">${opt(S.defaults.mode,[["auto","Auto"],["gaming","Gaming"],["podcast","Podcast"],["tutorial","Tutorial"]])}</select></label>

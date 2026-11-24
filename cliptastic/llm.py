@@ -11,6 +11,7 @@ PRESETS = {
     "llamacpp": {"name": "llama.cpp server (local)", "base_url": "http://127.0.0.1:8080/v1"},
     "openai": {"name": "OpenAI", "base_url": "https://api.openai.com/v1"},
     "openrouter": {"name": "OpenRouter", "base_url": "https://openrouter.ai/api/v1"},
+    "anthropic": {"name": "Claude (Anthropic API)", "base_url": "https://api.anthropic.com/v1"},
     "agent": {"name": "Agent (OpenAI-compatible)", "base_url": "http://127.0.0.1:8642/v1"},
     "custom": {"name": "Custom endpoint", "base_url": ""},
 }
@@ -29,8 +30,9 @@ def test(p):
     try:
         out["models"] = list_models(p)
     except Exception as e:
-        out["error"] = f"Cannot reach {p['base_url']} ({type(e).__name__})"
-        return out
+        if not p.get("model"):   # some providers hide /models: a typed model name is enough
+            out["error"] = f"Cannot list models at {p['base_url']} ({type(e).__name__}). Type a model name and test again."
+            return out
     mid = p.get("model") or (out["models"][0] if out["models"] else None)
     out["model"] = mid
     if not mid:
@@ -63,11 +65,7 @@ def model_id(role="rating"):
     if not p:
         return None
     if p.get("model"):
-        try:
-            list_models(p)
-            return p["model"]
-        except Exception:
-            return None
+        return p["model"]   # typed by the user: trust it, calls fail softly if wrong
     try:
         m = list_models(p)
         return m[0] if m else None
