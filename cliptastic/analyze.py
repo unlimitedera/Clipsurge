@@ -110,9 +110,12 @@ def _pct(x):
         return np.ones(len(x))
     return x.argsort().argsort() / (len(x) - 1)
 
-def find_moments(video, tr, duration, mode, count, minlen, maxlen, log):
+def find_moments(video, tr, duration, mode, count, minlen, maxlen, log, extra=None):
     energy = audio_energy(video)
     z = (energy - energy.mean()) / (energy.std() + 1e-6)
+    for ex in (extra or []):   # chat spikes, on-screen text hits
+        n = min(len(z), len(ex))
+        z[:n] = z[:n] + ex[:n]
     segs = tr["segments"]
     if sum(len(s["text"].split()) for s in segs) < 20:   # no speech: fixed chunks
         segs = [{"s": t, "e": min(t + 4.0, duration), "text": ""}

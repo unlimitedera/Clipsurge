@@ -6,10 +6,12 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from . import jobs, llm, youtube
+import threading, time, datetime
+from . import jobs, llm, youtube, extras
 from .config import JOBS, WEB, DATA
 
 app = FastAPI(title="Cliptastic")
+threading.Thread(target=extras.sched_loop, daemon=True).start()
 
 @app.get("/api/status")
 def status():
@@ -86,6 +88,49 @@ def upload_clip(jid: str, cid: int, privacy: str = "private"):
                                       " ".join(c.get("tags", [])), c.get("tags"), privacy)
     except Exception as e: raise HTTPException(400, f"{type(e).__name__}: {e}")
     jobs.save(job); return c
+
+class NewClip(BaseModel):
+    start: float
+    end: float
+    title: str = "Custom clip"
+
+@app.get("/api/jobs/{jid}/search")
+def search(jid: str, q: str):
+    job = jobs.load(jid)
+    tr = json.loads((JOBS / jid / "transcript.json").read_text("utf-8"))
+    st = job["settings"]
+    return extras.search(tr, q, float(st["minlen"]), float(st["maxlen"]))
+
+@app.post("/api/jobs/{jid}/clips")
+def add_clip(jid: str, n: NewClip):
+    job = jobs.load(jid)
+    cid = max([c["id"] for c in job["clips"]] + [0]) + 1
+    job["clips"].append({"id": cid, "start": n.start, "end": n.end, "score": 0, "title": n.title,
+                         "tags": [], "text": "", "approved": True, "status": "queued"})
+    jobs.save(job); jobs.rerender(jid, [cid]); return {"id": cid}
+
+class Sched(BaseModel):
+    when: str   # local time, e.g. 2026-11-25T18:00
+
+@app.post("/api/jobs/{jid}/clips/{cid}/schedule")
+def schedule(jid: str, cid: int, s: Sched):
+    ts = datetime.datetime.fromisoformat(s.when).timestamp()
+    extras.sched_add(jid, cid, ts); return extras.sched_list()
+
+@app.get("/api/schedule")
+def sched(): return extras.sched_list()
+
+@app.post("/api/obs/start")
+def obs_start():
+    try: extras.obs_start()
+    except Exception as e: raise HTTPException(400, f"OBS not reachable ({type(e).__name__}). Open OBS, enable WebSocket server (Tools > WebSocket Server Settings).")
+    return {"recording": True}
+
+@app.post("/api/obs/stop")
+def obs_stop(mode: str = "auto", count: int = 5):
+    try: path = extras.obs_stop()
+    except Exception as e: raise HTTPException(400, f"{type(e).__name__}: {e}")
+    return jobs.create(path, {"mode": mode, "count": count})
 
 @app.get("/files/{jid}/{path:path}")
 def files(jid: str, path: str):

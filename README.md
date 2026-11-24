@@ -26,3 +26,15 @@ until the app passes Google's audit.
 ## Status
 - Done: pipeline, dashboard, YouTube upload (untested without your credentials)
 - Next: scheduler, TikTok and Instagram, MCP wrapper
+
+## Repo map (what is really used)
+Used in code: yt-dlp (download, chat replay), OpenCV (faces, webcam detection, crop),
+faster-whisper (word timestamps, stands in for whisper-timestamped), ffmpeg-normalize
+(-14 LUFS), OpenTimelineIO (.otio + EDL export), RapidOCR (on-screen text, stands in
+for PaddleOCR), ASS captions (open in Aegisub), NVENC/ffmpeg encode (stands in for
+Shutter Encoder), obs-websocket (record from OBS).
+Ideas reimplemented, no code copied (AGPL/unlicensed): gaming-clip (webcam stack),
+Stream-clipper (chat spikes), Chopify (scoring), StoryToolkitAI (transcript search).
+Not included yet (heavy ML, optional later): BoxMOT, SAM 2, SpeechBrain, Moment-DETR,
+Ultimate Vocal Remover, Decord. GUI apps (OpenCut, Aegisub, VideoCaptioner) are
+export targets, not dependencies.

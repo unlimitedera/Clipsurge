@@ -4,7 +4,7 @@ import json, threading, time, traceback, uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from .config import JOBS
-from . import analyze, render
+from . import analyze, render, extras
 
 _pool = ThreadPoolExecutor(max_workers=1)
 _lock = threading.Lock()
@@ -58,9 +58,16 @@ def run_job(jid):
         tr = analyze.transcribe(video, jd, log)
         log(f"Transcript: {len(tr['words'])} words, language {tr['language']}")
         _set(job, 2, 45)
+        extra = []
+        c = extras.chat_signal(job["source"], jd, info["duration"], log)
+        if c is not None: extra.append(c)
+        if st["mode"] == "gaming":
+            log("Reading on-screen text (OCR)...")
+            o = extras.ocr_signal(video, info["duration"], log)
+            if o is not None: extra.append(o)
         job["clips"] = analyze.find_moments(video, tr, info["duration"], st["mode"],
                                             int(st["count"]), float(st["minlen"]),
-                                            float(st["maxlen"]), log)
+                                            float(st["maxlen"]), log, extra)
         save(job)
         _set(job, 3, 55)
         render_all(job, tr, log)
@@ -80,9 +87,12 @@ def render_all(job, tr, log, only=None):
                 st["layout"], c.get("caption_style") or st["captions"],
                 st["captions"] != "off", log)
             c["file"] = f"clips/{out.name}"; c["status"] = "done"
+            extras.write_srt(out.with_suffix(".srt"), tr["words"], c["start"], c["end"])
         except Exception as e:
             c["status"] = "error"; log(f"clip {c['id']}: {e}")
         job["progress"] = 55 + int(45 * (n + 1) / max(1, len(todo))); save(job)
+    try: extras.write_otio(job, jd)
+    except Exception as e: log(f"timeline export: {e}")
 
 def rerender(jid, ids):
     def go():

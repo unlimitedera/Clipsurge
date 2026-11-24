@@ -48,8 +48,9 @@ button.g{background:transparent;color:var(--tx);border:1px solid var(--ln);font-
  <select id="mode"><option value="auto">Auto</option><option value="podcast">Podcast</option><option value="gaming">Gaming</option><option value="tutorial">Tutorial</option></select>
  <label class="mu">Clips <input type="number" id="count" value="5" min="1" max="20"></label>
  <label class="mu">Length <input type="number" id="minlen" value="20"> - <input type="number" id="maxlen" value="55"> s</label>
- <select id="layout"><option value="auto">Crop: auto</option><option value="follow">Follow face</option><option value="fit">Fit + blur</option></select>
+ <select id="layout"><option value="auto">Crop: auto</option><option value="follow">Follow face</option><option value="stack">Webcam + gameplay</option><option value="fit">Fit + blur</option></select>
  <select id="cap"><option value="pop">Captions: Pop</option><option value="clean">Clean</option><option value="fire">Fire</option><option value="off">Off</option></select>
+ <button class="g" id="rec" onclick="rec()">&#9679; Record (OBS)</button>
  <button id="go" onclick="start()">Make clips &#9656;</button>
 </div>
 <div class="jobs" id="jobs"></div>
@@ -63,6 +64,21 @@ $("file").onchange=()=>{if(file.files[0])$("url").value="File: "+file.files[0].n
 const d=$("drop");["dragover","dragenter"].forEach(e=>d.addEventListener(e,x=>{x.preventDefault();d.classList.add("over")}));
 ["dragleave","drop"].forEach(e=>d.addEventListener(e,x=>{x.preventDefault();d.classList.remove("over")}));
 d.addEventListener("drop",x=>{if(x.dataTransfer.files[0]){file.files=x.dataTransfer.files;file.onchange()}});
+let recording=false;
+async function rec(){
+ const r=await fetch(recording?"/api/obs/stop":"/api/obs/start",{method:"POST"});
+ if(!r.ok){alert((await r.json()).detail);return}
+ recording=!recording;$("rec").innerHTML=recording?"&#9632; Stop + clip":"&#9679; Record (OBS)";
+ if(!recording){cur=(await r.json()).id;poll()}}
+async function search(){
+ const q=$("q").value.trim();if(!q)return;
+ const r=await (await fetch(`/api/jobs/${cur}/search?q=`+encodeURIComponent(q))).json();
+ $("hits").innerHTML=r.length?r.map(h=>`<div class="row" style="margin:6px 0"><span class="mu">${fmt(h.start)}-${fmt(h.end)}</span><span style="flex:1;margin:0 10px">${h.text.slice(0,120)}</span><button class="g" onclick="addClip(${h.start},${h.end},'${q.replace(/'/g,"")}')">Make clip</button></div>`).join(""):'<span class="mu">No matches</span>'}
+async function addClip(s,e,t){await fetch(`/api/jobs/${cur}/clips`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({start:s,end:e,title:t})});poll()}
+async function sched(id){
+ const w=$("w"+id).value;if(!w){alert("Pick a date and time");return}
+ const r=await fetch(`/api/jobs/${cur}/clips/${id}/schedule`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({when:w})});
+ alert(r.ok?"Scheduled for YouTube (private). Keep Cliptastic running.":"Failed")}
 async function start(){
  const f=new FormData();const u=$("url").value.trim();
  if(file.files[0]&&u.startsWith("File:"))f.append("file",file.files[0]);else f.append("url",u);
@@ -87,12 +103,14 @@ function draw(j){
   <div class="row"><label class="mu"><input type="checkbox" ${c.approved?"checked":""} onchange="edit(${c.id},{approved:this.checked})"> Keep</label>
    <button class="g" onclick="edit(${c.id},{start:+$('s${c.id}').value,end:+$('e${c.id}').value},true)">Re-render</button>
    ${c.status=="done"?(c.youtube?`<a href="${c.youtube}" target="_blank">On YouTube</a>`:`<button class="g" onclick="up(${c.id})">Upload to YouTube</button>`):""}
-   ${c.status=="done"?`<a href="/files/${j.id}/${c.file}" download>Download</a>`:""}</div></div>`).join("");
+   ${c.status=="done"?`<a href="/files/${j.id}/${c.file}" download>MP4</a> <a href="/files/${j.id}/${c.file.replace(".mp4",".srt")}" download>SRT</a> <a href="/files/${j.id}/clips/clip${c.id}.ass" download>ASS</a>`:""}</div>
+  ${c.status=="done"&&!c.youtube?`<div class="row"><input type="datetime-local" id="w${c.id}" style="flex:1"><button class="g" onclick="sched(${c.id})">Schedule</button></div>`:""}</div>`).join("");
  $("view").innerHTML=`<div class="layout"><div class="card"><b>Pipeline</b>${steps}<div class="bar"><b style="width:${j.progress}%"></b></div>
   <div class="mu">${j.info?fmt(j.info.duration)+" · "+j.info.width+"x"+j.info.height:""}</div></div>
   <div><div class="card"><b>${j.title||""}</b> <span class="chip">${j.settings.mode}</span><span class="chip">${j.clips.length} moments</span>
   ${j.error?`<div class="err">${j.error}</div>`:""}<div class="log">${(j.log||[]).slice(-6).join("<br>")}</div>
   ${j.clips.length?`<div style="margin-top:8px"><button onclick="fetch('/api/jobs/${j.id}/render',{method:'POST'}).then(poll)">Render kept clips</button></div>`:""}</div>
+  <div class="card"><div class="row"><input type="text" id="q" placeholder="Find a moment: &quot;the funny story about the server&quot;" onkeydown="if(event.key=='Enter')search()" style="flex:1"><button class="g" onclick="search()">Search</button> ${j.state=="done"?`<a href="/files/${j.id}/timeline.otio" download>Timeline (.otio)</a> <a href="/files/${j.id}/timeline.edl" download>EDL</a>`:""}</div><div id="hits"></div></div>
   <div class="grid">${clips}</div></div></div>`}
 async function up(id){
  const s=await (await fetch("/api/youtube")).json();
