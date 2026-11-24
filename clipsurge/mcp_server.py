@@ -1,12 +1,12 @@
 # Copyright (c) 2026 unlimitedera. All Rights Reserved.
-"""MCP server: lets an agent (Hermes, Claude, etc.) drive Cliptastic.
-Run:  .venv\\Scripts\\python.exe -m cliptastic.mcp_server   (Cliptastic web app must be running)"""
+"""MCP server: lets an agent (Hermes, Claude, etc.) drive Clipsurge.
+Run:  .venv\\Scripts\\python.exe -m clipsurge.mcp_server   (Clipsurge web app must be running)"""
 import os
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-BASE = os.environ.get("CLIPTASTIC_URL", "http://127.0.0.1:8420")
-mcp = FastMCP("cliptastic")
+BASE = os.environ.get("CLIPSURGE_URL", "http://127.0.0.1:8420")
+mcp = FastMCP("clipsurge")
 
 def _call(method, path, **kw):
     r = httpx.request(method, BASE + path, timeout=60, **kw)

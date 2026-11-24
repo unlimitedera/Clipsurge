@@ -45,7 +45,8 @@ def _lines(v):
 
 def _brief(b):
     b = b or {}
-    return {"ideas": _lines(b.get("ideas")), "avoid": _lines(b.get("avoid"))}
+    return {"ideas": _lines(b.get("ideas")), "avoid": _lines(b.get("avoid")),
+            "prompt": str(b.get("prompt") or "").strip()[:4000]}
 
 DEF_KEYS = ("mode", "count", "minlen", "maxlen", "layout", "captions", "language", "whisper_model")
 

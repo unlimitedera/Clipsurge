@@ -1,6 +1,6 @@
 # Copyright (c) 2026 unlimitedera. All Rights Reserved.
 import sys, time
-from cliptastic import jobs
+from clipsurge import jobs
 j = jobs.create(sys.argv[1], {"count": int(sys.argv[2]) if len(sys.argv) > 2 else 3})
 while True:
     j = jobs.load(j["id"])

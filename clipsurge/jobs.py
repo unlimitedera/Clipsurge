@@ -134,8 +134,10 @@ def run_job(jid):
         lg = st.get("language"); lg = lg if lg not in (None, "", "auto") else None
         tr = analyze.transcribe(video, jd, log, T, info["duration"], lg, st.get("whisper_model") or None)
         log(f"Transcript: {len(tr['words'])} words, language {tr['language']}")
-        if tr['language'] in analyze.NON_LATIN and tr.get('model') in ('tiny', 'base', 'small'):
-            log(f"Tip: the '{tr.get('model')}' speech model makes many mistakes in this language. Choose large-v3 in the project's Goals and settings, then Re-find.")
+        if tr['language'] in analyze.NON_LATIN and tr.get('model') in ('tiny', 'base', 'small', 'distil-large-v3') and not st.get('whisper_model'):
+            log(f"Detected {tr['language']}: redoing the transcript with the large-v3 speech model for accuracy")
+            stage(1, ["Extract audio", "Load speech model", "Transcribe speech"])
+            tr = analyze.transcribe(video, jd, log, T, info["duration"], lg, "large-v3")
 
         yt = "youtube.com" in job["source"] or "youtu.be" in job["source"]
         use_chat = feat["chat_replay"] and yt

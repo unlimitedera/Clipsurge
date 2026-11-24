@@ -1,11 +1,14 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Cliptastic</title>
+<html lang="en"><head>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem("ct_theme")||"dark"}catch(e){}</script><meta charset="utf-8"><title>Clipsurge</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <!-- Copyright (c) 2026 unlimitedera. All Rights Reserved. -->
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/theme.css">
 </head><body>
-<header><div><div class="logo">clip<b>tastic</b><em>!</em></div><div class="mu">Any video in. Share-ready shorts out. Runs on your PC.</div></div>
-<nav class="nav" aria-label="Main"><button id="nv_projects" class="on" onclick="nav('/projects')">Projects</button><button id="nv_settings" onclick="nav('/settings')">Settings</button></nav><div class="mu" id="st"></div></header>
+<header><div class="brand"><span class="mark"></span><b>CLIP<i>SURGE</i></b></div>
+<nav class="nav" aria-label="Main"><button id="nv_projects" class="on" onclick="nav('/projects')"></button><button id="nv_settings" onclick="nav('/settings')"></button></nav>
+<div class="hright"><button class="sw" id="themeSw" role="switch" aria-checked="false" aria-label="Light mode" title="Light / dark mode"></button><div id="st" class="mu"></div><button class="g sm" id="restart" title="Restart Clipsurge (video work in progress will pause)"></button></div></header>
 <main><div id="settingsView" class="hide"></div><div id="app"></div></main>
-<script src="/core.js"></script><script src="/picker.js"></script><script src="/editor.js"></script><script src="/settings.js"></script><script src="/app.js"></script>
+<script src="/core.js"></script><script src="/picker.js"></script><script src="/editor.js"></script><script src="/settings.js"></script><script src="/models.js"></script><script src="/app.js"></script>
 </body></html>

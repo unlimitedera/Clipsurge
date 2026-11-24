@@ -15,6 +15,7 @@ function renderSettings(){
  const provs=S.ai.providers;
  const roleOpts=[["","First enabled connection"],...provs.map(p=>[p.id,p.name])];
  document.getElementById("settingsView").innerHTML=`
+ <div id="modelHub"></div>
  <div class="card"><h3>AI models and agents</h3>
   <p class="mu">Connect any local model or agent that speaks the OpenAI chat format (LM Studio, Ollama, llama.cpp, an agent's API, or a cloud provider). The AI rates moments, writes titles and hashtags, and powers moment search. Everything still works with no AI connected.</p>
   <div id="provs">${provs.map(provCard).join("")}</div>
@@ -22,7 +23,7 @@ function renderSettings(){
   <div class="two" style="margin-top:12px"><label>Rating, titles and hashtags<select id="role_rating">${opt(S.ai.roles.rating,roleOpts)}</select></label>
   <label>Moment search<select id="role_search">${opt(S.ai.roles.search,roleOpts)}</select></label></div></div>
 
- <div class="card"><h3>Let an agent control Cliptastic (MCP)</h3>
+ <div class="card"><h3>Let an agent control Clipsurge (MCP)</h3>
   <p class="mu">Works with Hermes, Claude Code, Claude Desktop and any MCP client. The agent can start jobs, check progress, search moments, add clips and upload. Keep this app running.</p>
   ${[["Hermes (run in a terminal)",MCPCFG.hermes],["Claude Code (run in a terminal)",MCPCFG.claude_code],["Claude Desktop / other clients (JSON)",JSON.stringify(MCPCFG.json,null,2)]].map(([t,c],i)=>`<div class="mu" style="margin-top:8px">${t}</div><pre class="code" id="mcp${i}">${E(c)}</pre><button class="g" onclick="navigator.clipboard.writeText(document.getElementById('mcp${i}').textContent);this.textContent='Copied'">Copy</button>`).join("")}</div>
 
@@ -38,7 +39,7 @@ function renderSettings(){
   ${[["llm_rating","AI rating and titles","Needs a connected model"],["ocr","Read on-screen text (gaming)","Spots KILL, VICTORY, ACE"],["chat_replay","YouTube chat spikes","Busy chat = good moment"],["webcam_detect","Find the webcam","Stacks webcam over gameplay"],["loudness","Balance loudness","Same volume across clips"],["native_only","Captions in the spoken language only","Removes stray English letters from Arabic, Hebrew, Russian and similar"]].map(([k,t,h])=>`<label class="chk"><input type="checkbox" id="f_${k}" ${S.features[k]?"checked":""}><span>${t}<small class="mu"> ${h}</small></span></label>`).join("")}</div></div>
 
  <div class="card"><h3>Speech and video</h3><div class="three">
-  <label>Speech model<select id="t_model">${opt(S.transcribe.model,[["tiny","tiny (fastest)"],["base","base"],["small","small (default)"],["medium","medium"],["large-v3","large-v3 (best)"],["distil-large-v3","distil-large-v3 (fast + good)"]])}</select></label>
+  <label>Speech model<select id="t_model">${opt(S.transcribe.model,[["auto","Auto (best that fits)"],["tiny","tiny (fastest)"],["base","base"],["small","small (default)"],["medium","medium"],["large-v3","large-v3 (best)"],["distil-large-v3","distil-large-v3 (fast + good)"]])}</select></label>
   <label>Language<input type="text" id="t_language" value="${E(S.transcribe.language)}" placeholder="auto, en, ar, es..."></label>
   <label>Run speech on<select id="t_device">${opt(S.transcribe.device,[["auto","Auto (GPU if possible)"],["cuda","GPU"],["cpu","CPU"]])}</select></label>
   <label>Video encoder<select id="v_encoder">${opt(S.video.encoder,[["auto","Auto"],["nvenc","NVIDIA GPU (NVENC)"],["x264","CPU (x264)"]])}</select></label>
@@ -54,7 +55,7 @@ function renderSettings(){
   <label>OBS port<input type="number" id="o_port" value="${S.obs.port}"></label>
   <label>OBS password<input type="password" id="o_password" value="${E(S.obs.password)}"></label></div></div>
 
- <div class="savebar"><span id="savemsg" class="mu"></span><button onclick="saveSettings()">Save settings</button></div>`}
+ <div class="savebar"><span id="savemsg" class="mu"></span><button onclick="saveSettings()">Save settings</button></div>`;renderModelHub()}
 
 function provCard(p){
  return `<div class="prov" data-id="${p.id}">

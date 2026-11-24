@@ -117,8 +117,8 @@ def write_otio(job, jobdir):
     import opentimelineio as otio
     fps = 30.0
     video = (Path(jobdir) / job["video"]).resolve()
-    tl = otio.schema.Timeline(name=job["title"] or "Cliptastic")
-    tr = otio.schema.Track(name="Cliptastic moments", kind=otio.schema.TrackKind.Video)
+    tl = otio.schema.Timeline(name=job["title"] or "Clipsurge")
+    tr = otio.schema.Track(name="Clipsurge moments", kind=otio.schema.TrackKind.Video)
     for c in job["clips"]:
         if not c.get("approved"):
             continue
@@ -126,7 +126,7 @@ def write_otio(job, jobdir):
         cl = otio.schema.Clip(name=c["title"] or f"clip {c['id']}", media_reference=ref,
             source_range=otio.opentime.TimeRange(otio.opentime.RationalTime(c["start"] * fps, fps),
                                                  otio.opentime.RationalTime((c["end"] - c["start"]) * fps, fps)))
-        cl.metadata["cliptastic"] = {"score": c["score"], "tags": c.get("tags", [])}
+        cl.metadata["clipsurge"] = {"score": c["score"], "tags": c.get("tags", [])}
         tr.append(cl)
     tl.tracks.append(tr)
     p = Path(jobdir) / "timeline.otio"

@@ -8,8 +8,8 @@ JOBS = DATA / "jobs"
 WEB = ROOT / "web"
 JOBS.mkdir(parents=True, exist_ok=True)
 
-LLM_URL = os.environ.get("CLIPTASTIC_LLM", "http://127.0.0.1:1234/v1")
-WHISPER_MODEL = os.environ.get("CLIPTASTIC_WHISPER", "small")
+LLM_URL = os.environ.get("CLIPSURGE_LLM", "http://127.0.0.1:1234/v1")
+WHISPER_MODEL = os.environ.get("CLIPSURGE_WHISPER", "small")
 
 def _find(name):
     p = shutil.which(name)

@@ -1,11 +1,11 @@
-# Cliptastic
+# Clipsurge
 
 Any video in, share-ready vertical shorts out. Runs locally on your PC.
 Copyright (c) 2026 unlimitedera. All Rights Reserved (see LICENSE).
 
 ## Run
 Double-click `start.bat` (opens http://127.0.0.1:8420), or:
-`.venv\Scripts\python.exe -m cliptastic.server`
+`.venv\Scripts\python.exe -m clipsurge.server`
 
 ## Flow
 Get video (yt-dlp) -> Transcribe (faster-whisper, GPU) -> Find moments (audio energy,
@@ -13,8 +13,8 @@ speech, keywords, optional local LLM) -> Smart crop (OpenCV face follow or blurr
 -> Word-by-word captions -> Loudness normalize -> MP4 1080x1920.
 
 ## Local AI (optional)
-Start LM Studio's server (127.0.0.1:1234). Cliptastic uses it for titles, hashtags and
-better scoring. Without it, scoring still works. Override with CLIPTASTIC_LLM.
+Start LM Studio's server (127.0.0.1:1234). Clipsurge uses it for titles, hashtags and
+better scoring. Without it, scoring still works. Override with CLIPSURGE_LLM.
 
 ## YouTube upload
 1. Google Cloud console: create a project, enable "YouTube Data API v3".
@@ -46,7 +46,7 @@ toggle features, pick the speech model, encoder, loudness and caption size, and 
 YouTube options. API keys are stored in data/settings.json (not committed) and shown masked.
 
 ## Agent control (MCP)
-`python -m cliptastic.mcp_server` exposes create_job, list_jobs, get_job, search_moments,
+`python -m clipsurge.mcp_server` exposes create_job, list_jobs, get_job, search_moments,
 add_clip, render_pending, upload_to_youtube. The Settings tab shows the config to paste into
 an agent's MCP settings. Requires `mcp<2`.
 

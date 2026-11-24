@@ -1,15 +1,15 @@
 # Copyright (c) 2026 unlimitedera. All Rights Reserved.
-"""Cliptastic web server: python -m cliptastic.server"""
+"""Clipsurge web server: python -m clipsurge.server"""
 import datetime, json, shutil, threading
 from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from . import jobs, llm, youtube, extras, settings, projects, fsbrowse, analyze
+from . import models, jobs, llm, youtube, extras, settings, projects, fsbrowse, analyze
 from .config import JOBS, WEB, DATA, ROOT
 
-app = FastAPI(title="Cliptastic")
+app = FastAPI(title="Clipsurge")
 projects.ensure_inbox()
 jobs.mark_orphans()
 threading.Thread(target=extras.sched_loop, daemon=True).start()
@@ -23,14 +23,14 @@ def _clip(job, cid):
 def get_settings():
     return {"settings": settings.public(), "presets": llm.PRESETS, "youtube": youtube.state(),
             "mcp": {
-                "json": {"mcpServers": {"cliptastic": {
+                "json": {"mcpServers": {"clipsurge": {
                     "command": str(ROOT / ".venv/Scripts/python.exe").replace("\\", "/"),
-                    "args": ["-m", "cliptastic.mcp_server"],
+                    "args": ["-m", "clipsurge.mcp_server"],
                     "env": {"PYTHONPATH": str(ROOT).replace("\\", "/")}}}},
-                "claude_code": f'claude mcp add cliptastic --env PYTHONPATH={str(ROOT).replace(chr(92), "/")} -- '
-                               f'{str(ROOT / ".venv/Scripts/python.exe").replace(chr(92), "/")} -m cliptastic.mcp_server',
-                "hermes": f'hermes mcp add cliptastic --command "{str(ROOT / ".venv/Scripts/python.exe").replace(chr(92), "/")}" '
-                          f'--env PYTHONPATH={str(ROOT).replace(chr(92), "/")} --args -m cliptastic.mcp_server'}}
+                "claude_code": f'claude mcp add clipsurge --env PYTHONPATH={str(ROOT).replace(chr(92), "/")} -- '
+                               f'{str(ROOT / ".venv/Scripts/python.exe").replace(chr(92), "/")} -m clipsurge.mcp_server',
+                "hermes": f'hermes mcp add clipsurge --command "{str(ROOT / ".venv/Scripts/python.exe").replace(chr(92), "/")}" '
+                          f'--env PYTHONPATH={str(ROOT).replace(chr(92), "/")} --args -m clipsurge.mcp_server'}}
 
 
 @app.post("/api/settings")
@@ -44,10 +44,83 @@ def ai_test(p: dict):
         p["api_key"] = old.get("api_key", "")
     return llm.test(p)
 
+# ---------- model hub ----------
+@app.get("/api/hw")
+def api_hw(): return models.hardware()
+
+@app.get("/api/models/speech")
+def api_speech(): return models.speech_catalog()
+
+class DlIn(BaseModel):
+    kind: str
+    name: str = ""
+    repo: str = ""
+    file: str = ""
+
+@app.post("/api/models/download")
+def api_download(d: DlIn):
+    if d.kind == "speech": models.download_speech(d.name)
+    elif d.kind == "gguf": models.download_gguf(d.repo, d.file)
+    elif d.kind == "runtime": models.install_runtime()
+    else: raise HTTPException(400, "unknown kind")
+    return {"ok": True}
+
+@app.post("/api/models/speech/delete")
+def api_speech_del(d: DlIn):
+    models.delete_speech(d.name); return {"ok": True}
+
+@app.get("/api/models/downloads")
+def api_dls(): return models.downloads()
+
+@app.get("/api/models/hf/search")
+def api_hf_search(q: str = ""):
+    try: return models.hf_search(q)
+    except Exception as e: raise HTTPException(502, f"Could not reach Hugging Face ({type(e).__name__})")
+
+@app.get("/api/models/hf/files")
+def api_hf_files(repo: str):
+    try: return models.hf_files(repo)
+    except Exception as e: raise HTTPException(502, f"Could not read that repository ({type(e).__name__})")
+
+@app.get("/api/models/local")
+def api_local():
+    return {"models": models.local_models(), "status": models.local_status()}
+
+@app.get("/api/models/plan")
+def api_plan(path: str, ctx: int = 8192):
+    try: return models.plan_llm(path, ctx)
+    except Exception as e: raise HTTPException(400, str(e))
+
+class RunIn(BaseModel):
+    path: str
+    ctx: int = 8192
+
+@app.post("/api/models/local/run")
+def api_run(r: RunIn):
+    try: return models.run_local(r.path, r.ctx)
+    except Exception as e: raise HTTPException(400, str(e))
+
+@app.post("/api/models/local/stop")
+def api_stop(): models.stop_local(); return {"ok": True}
+
+@app.post("/api/models/local/delete")
+def api_del_local(r: RunIn): models.delete_gguf(r.path); return {"ok": True}
+
 @app.get("/api/status")
 def status():
     p = llm.provider("rating")
-    return {"llm": llm.model_id("rating"), "provider": p["name"] if p else None}
+    busy = sum(1 for j in jobs.list_jobs() if j["state"] in ("running", "queued"))
+    return {"llm": llm.model_id("rating"), "provider": p["name"] if p else None, "busy": busy}
+
+@app.post("/api/restart")
+def restart_service():
+    """Starts a fresh server after this one exits. Jobs in progress become 'interrupted' (Resume)."""
+    import os, subprocess, sys
+    subprocess.Popen([sys.executable, "-m", "clipsurge.relaunch"], cwd=str(ROOT), close_fds=True,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     creationflags=0x08000000 | 0x00000200)      # CREATE_NO_WINDOW | NEW_PROCESS_GROUP
+    threading.Timer(0.7, lambda: os._exit(0)).start()
+    return {"restarting": True}
 
 @app.get("/api/jobs")
 def list_jobs():
@@ -246,6 +319,23 @@ def edit_clip(jid: str, cid: int, e: ClipEdit, render: bool = False):
     job = jobs.update(jid, f)
     if render and _clip(job, cid)["status"] == "queued": jobs.rerender(jid, [cid])
     return _clip(job, cid)
+
+@app.delete("/api/jobs/{jid}/clips/{cid}")
+def delete_clip(jid: str, cid: int):
+    if jobs.load(jid)["state"] in ("running", "queued"): raise HTTPException(400, "Wait for the video to finish or cancel it first")
+    files = []
+    def f(j):
+        c = _clip(j, cid)
+        if c["status"] in ("queued", "rendering"): raise HTTPException(400, "This clip is rendering. Try again when it finishes")
+        if c.get("file"): files.append(c["file"])
+        j["clips"] = [x for x in j["clips"] if x["id"] != cid]
+    jobs.update(jid, f)
+    d = JOBS / jid / "clips"
+    for name in files + [f"clip{cid}.srt", f"clip{cid}.ass", f"clip{cid}.jpg"]:
+        (JOBS / jid / name if "/" in name else d / name).unlink(missing_ok=True)
+    try: extras.write_otio(jobs.load(jid), JOBS / jid)
+    except Exception: pass
+    return {"ok": True}
 
 @app.post("/api/jobs/{jid}/render")
 def render_all(jid: str):

@@ -11,7 +11,8 @@ DEFAULTS = {
                  "layout": "auto", "captions": "pop"},
     "features": {"llm_rating": True, "ocr": True, "chat_replay": True,
                  "webcam_detect": True, "loudness": True, "native_only": True},
-    "transcribe": {"model": "small", "language": "auto", "device": "auto"},
+    "memory": {"mode": "auto", "vram_gb": 0, "ram_gb": 0},
+    "transcribe": {"model": "auto", "language": "auto", "device": "auto"},
     "video": {"encoder": "auto", "lufs": -14, "caption_size": 84, "max_height": 1080},
     "ai": {
         "providers": [{"id": "lmstudio", "name": "LM Studio (local)", "kind": "lmstudio",

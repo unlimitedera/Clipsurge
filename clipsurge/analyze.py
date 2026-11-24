@@ -100,20 +100,22 @@ NON_LATIN = {"ar", "fa", "ur", "he", "ps", "ku", "sd", "ug", "yi", "hi", "bn", "
              "uk", "bg", "sr", "zh", "ja", "ko", "el", "ka", "hy"}
 RTL_LANGS = {"ar", "fa", "ur", "he", "ps", "ku", "sd", "ug", "yi"}
 _LAT = re.compile(r"[A-Za-z\u00C0-\u024F\u1E00-\u1EFF]")
+_FOREIGN_AR = re.compile(r"[A-Za-z\u00C0-\u024F\u1E00-\u1EFF\u0370-\u03FF\u0400-\u04FF\u0900-\u097F\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF]")
 
 def clean_transcript(tr):
     """For non-Latin languages (Arabic, Hebrew, Russian...), remove stray English/Latin letters that
     speech models hallucinate. Word positions are kept (emptied, not deleted) so edits stay aligned."""
     if tr.get("language") not in NON_LATIN or not settings.get()["features"].get("native_only", True):
         return tr
+    pat = _FOREIGN_AR if tr.get("language") in RTL_LANGS else _LAT
     for w in tr["words"]:
-        if _LAT.search(w["w"]):
-            w["w"] = _LAT.sub("", w["w"]).strip()
+        if pat.search(w["w"]):
+            w["w"] = pat.sub("", w["w"]).strip()
         if w["w"] and not re.search(r"\w", w["w"]):
             w["w"] = ""
     for sg in tr["segments"]:
-        if _LAT.search(sg["text"]):
-            sg["text"] = re.sub(r"\s+", " ", _LAT.sub("", sg["text"])).strip()
+        if pat.search(sg["text"]):
+            sg["text"] = re.sub(r"\s+", " ", pat.sub("", sg["text"])).strip()
     return tr
 
 def load_transcript(path):
@@ -121,7 +123,7 @@ def load_transcript(path):
 
 def extract_audio(video, wav, duration=None, T=None):
     p = subprocess.Popen([FFMPEG, "-y", "-v", "error", "-progress", "pipe:1", "-nostats", "-i", str(video),
-                          "-vn", "-ac", "1", "-ar", "16000", str(wav)],
+                          "-vn", "-af", "highpass=f=80,dynaudnorm=f=150:g=15", "-ac", "1", "-ar", "16000", str(wav)],
                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     for line in p.stdout:
         if T and duration and line.startswith("out_time_us="):
@@ -163,33 +165,45 @@ def transcribe(video, jobdir, log, T=None, duration=None, lang_req=None, model_r
     with wave.open(str(wav)) as wf:
         audio = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16).astype(np.float32) / 32768
     ts = settings.get()["transcribe"]
-    name = model_req or ts.get("model") or WHISPER_MODEL
     req = lang_req or ts.get("language", "auto")
     lang = None if req in ("auto", "", None) else req
-    kw = dict(word_timestamps=True, vad_filter=True, language=lang)
+    from . import models
+    pl = models.whisper_plan(model_req or ts.get("model") or WHISPER_MODEL, lang)
+    name = pl["model"]
+    kw = dict(word_timestamps=True, vad_filter=True, language=lang, condition_on_previous_text=False, beam_size=5,
+              vad_parameters=dict(min_silence_duration_ms=500, speech_pad_ms=200))
+    log("Speech: " + pl["reason"])
     raw = None
-    if ts.get("device", "auto") in ("auto", "cuda"):
+    if pl["device"] == "cuda":
         try:
-            T and T.set("Load speech model", None, f"Loading {name} on GPU (first use downloads it)")
-            model = WhisperModel(name, device="cuda", compute_type="float16")
+            T and T.set("Load speech model", None, f"Loading {name} on the GPU ({pl['compute_type']})")
+            model = WhisperModel(pl["repo"], device="cuda", compute_type=pl["compute_type"])
             T and T.done("Load speech model", f"{name} on GPU")
-            log(f"Whisper '{name}' on GPU")
             segs_iter, info = model.transcribe(audio, **kw)
             raw = _collect(segs_iter, T, duration)
         except Exception as e:
-            log(f"GPU unavailable ({type(e).__name__}), using CPU")
+            log(f"GPU failed ({type(e).__name__}), using CPU")
+            try: del model
+            except Exception: pass
     if raw is None:
-        T and T.set("Load speech model", None, f"Loading {name} on CPU")
-        model = WhisperModel(name, device="cpu", compute_type="int8")
+        T and T.set("Load speech model", None, f"Loading {name} on the CPU")
+        model = WhisperModel(pl["repo"], device="cpu", compute_type="int8", cpu_threads=pl["cpu_threads"])
         T and T.done("Load speech model", f"{name} on CPU")
-        log(f"Whisper '{name}' on CPU")
         segs_iter, info = model.transcribe(audio, **kw)
         raw = _collect(segs_iter, T, duration)
     segs, words = [], []
+    dropped = 0
     for s in raw:
+        bad = ((s.avg_logprob < -1.0 and s.no_speech_prob > 0.4) or s.compression_ratio > 2.4 or s.no_speech_prob > 0.85
+               or (s.avg_logprob < -1.4))
+        if bad:
+            dropped += 1
+            continue
         segs.append({"s": s.start, "e": s.end, "text": s.text.strip()})
         for w in (s.words or []):
-            words.append({"w": w.word.strip(), "s": w.start, "e": w.end})
+            words.append({"w": w.word.strip() if (w.probability or 0) >= 0.15 else "", "s": w.start, "e": w.end})
+    if dropped:
+        log(f"Skipped {dropped} unclear phrases (noise, music or overlapping voices)")
     out = {"language": info.language, "segments": segs, "words": words, "model": name, "lang_req": req}
     cache.write_text(json.dumps(out), "utf-8")
     return clean_transcript(out)
@@ -224,6 +238,13 @@ _SKIP = set("the a an and or of to in on is it that this for with as at by be ar
 
 def _toks(t):
     return {w for w in _W.findall(t.lower()) if w not in _SKIP and len(w) > 2}
+
+def _prompt_overlap(text, brief):
+    """Weak signal from the long description: share of the candidate's content words that the
+    creator's own paragraph also uses."""
+    pt = _toks(brief.get("prompt", ""))
+    w = _toks(text)
+    return len(pt & w) / max(4, len(w)) if pt and w else 0.0
 
 def _brief_match(text, brief):
     """Returns (best idea or '', 0..1 strength, avoided?). Plain word overlap: no AI needed."""
@@ -289,12 +310,12 @@ def find_moments(video, tr, duration, mode, count, minlen, maxlen, log, extra=No
         c["heur"] = 100 * (w[0] * cols[0][n] + w[1] * cols[1][n] + w[2] * cols[2][n]
                            + w[3] * cols[3][n] + w[4] * hooks[n])
     brief = brief or {}
-    has_brief = bool(brief.get("ideas") or brief.get("avoid"))
+    has_brief = bool(brief.get("ideas") or brief.get("avoid") or brief.get("prompt"))
     if has_brief:
         for c in cands:
             idea, bs, avoided = _brief_match(c["text"], brief)
             c["idea"] = idea
-            c["heur"] = min(100, c["heur"] + 35 * bs) - (45 if avoided else 0)
+            c["heur"] = min(100, c["heur"] + 35 * bs + 40 * _prompt_overlap(c["text"], brief)) - (45 if avoided else 0)
     cands.sort(key=lambda c: -c["heur"])
     keep = []
     for c in cands:  # non-max suppression
@@ -347,6 +368,8 @@ def _llm_rate(cands, mode, log, brief=None):
     wants = ""
     if brief and brief.get("ideas"):
         wants += "The creator wants moments like:\n- " + "\n- ".join(brief["ideas"]) + "\nScore moments that match these much higher and set \"idea\" to the matching line (else \"\").\n"
+    if brief and brief.get("prompt"):
+        wants += "Creator's own description of what they want (follow its tone, audience and taste):\n" + brief["prompt"][:3000] + "\n"
     if brief and brief.get("avoid"):
         wants += "Score moments about these very low:\n- " + "\n- ".join(brief["avoid"]) + "\n"
     res = llm.chat_json(
