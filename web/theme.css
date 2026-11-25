@@ -524,3 +524,13 @@ button.uib:hover{color:var(--lime);border-color:var(--lime);filter:none}.uit.err
 .memmeter .mdl{color:var(--lime)}.memmeter .mdl b{color:var(--lime);text-transform:none;letter-spacing:0}
 
 .memmeter .mdl b{display:inline-block;max-width:210px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}.memmeter .mdl.sh .ml{display:none}.memmeter .mdl.sh b{max-width:120px}
+
+#appfoot{position:fixed;left:0;right:0;bottom:0;height:32px;z-index:60;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 28px;font-size:11px;letter-spacing:.04em;color:var(--mu);background:rgba(10,11,13,.92);backdrop-filter:blur(8px);border-top:1px solid var(--ln)}
+[data-theme=light] #appfoot{background:rgba(242,243,239,.94)}
+#appfoot .fl{display:flex;gap:16px}#appfoot a{color:var(--mu);text-decoration:none}#appfoot a:hover{color:var(--lime)}
+#appfoot .fv{display:inline-flex;align-items:center;gap:8px;background:none;border:0;padding:0;color:var(--mu);font:inherit;letter-spacing:inherit;text-transform:none;clip-path:none;cursor:pointer}
+#appfoot .fv:hover{color:var(--tx)}#appfoot .fv b{color:var(--tx);font-family:var(--mono,monospace)}
+#appfoot .fv i{width:8px;height:8px;border-radius:50%;background:var(--mu)}#appfoot .fv.ok i{background:var(--lime)}#appfoot .fv.new i{background:var(--org);box-shadow:0 0 0 3px rgba(255,159,67,.25)}#appfoot .fv.new{color:var(--org)}#appfoot .fv.off i{background:var(--red)}
+body{padding-bottom:32px}#utray{bottom:46px!important}#toasts{bottom:calc(var(--trayh,18px) + 28px)!important}
+@media(max-width:820px){#appfoot .fc{display:none}#appfoot{justify-content:space-between;padding:0 14px}}
+@media(max-width:520px){#appfoot .fl a:not([data-cr]):nth-child(n+2){display:none}}

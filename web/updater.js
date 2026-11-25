@@ -8,9 +8,26 @@
  let info=null;
  const auto=()=>{try{return localStorage.getItem("ct_upd_auto")!=="0"}catch(e){return true}};
  const ago=d=>{if(!d)return"";const s=(Date.now()-new Date(d))/1000;if(s<3600)return Math.max(1,Math.round(s/60))+" min ago";if(s<86400)return Math.round(s/3600)+" h ago";return Math.round(s/86400)+" days ago"};
+ const foot=document.createElement("footer");foot.id="appfoot";document.body.appendChild(foot);
+ const GH="https://github.com/unlimitedera/Clipsurge";
+ function footDraw(state){
+  let st,cls;
+  if(state==="checking"||(!info&&state!=="offline")){st="Checking for updates";cls="chk"}
+  else if(!info){st="Could not check";cls="off"}
+  else if(info.error){st="Could not check for updates";cls="off"}
+  else if(info.available){st=`Update available${info.latest?" ("+info.latest+")":""}`;cls="new"}
+  else{st="Up to date";cls="ok"}
+  const v=info&&info.current?info.current:"";
+  foot.innerHTML=`<span class="fc">© 2026 unlimitedera. All Rights Reserved.</span>
+   <span class="fl"><a href="${GH}" target="_blank" rel="noopener">GitHub</a><a href="${GH}/blob/main/LICENSE" target="_blank" rel="noopener">License</a><a href="${GH}/blob/main/TERMS.md" target="_blank" rel="noopener">Terms</a><a href="#" data-cr>Credits</a></span>
+   <button class="fv ${cls}" id="footv" title="${esc(info&&info.current_date?"Installed "+agoTxt(info.current_date)+". ":"")}Click to check for updates"><i></i><span>Clipsurge${v?" <b>"+esc(v)+"</b>":""} · ${st}</span></button>`;
+  foot.querySelector("[data-cr]").onclick=e=>{e.preventDefault();if(window.creditsDialog)creditsDialog()};
+  foot.querySelector("#footv").onclick=()=>{footDraw("checking");updateDialog(true)}}
+ const agoTxt=d=>{const s=(Date.now()-new Date(d))/1000;return s<3600?Math.max(1,Math.round(s/60))+" min ago":s<86400?Math.round(s/3600)+" h ago":Math.round(s/86400)+" days ago"};
+ footDraw("checking");
  async function check(force){
-  try{info=await jget("/api/update"+(force?"?force=true":""))}catch(e){info=null;return null}
-  pill.hidden=!(info.available&&(force||auto()));if(window.fitHeader)fitHeader();
+  try{info=await jget("/api/update"+(force?"?force=true":""))}catch(e){info=null;footDraw("offline");return null}
+  pill.hidden=!(info.available&&(force||auto()));if(window.fitHeader)fitHeader();footDraw();
   window.UPD=info;const v=document.getElementById("updver");if(v)v.textContent=verText();
   return info}
  function verText(){if(!info)return"";return info.current?`${info.current}${info.current_date?" · updated "+ago(info.current_date):""}`:"unknown"}
