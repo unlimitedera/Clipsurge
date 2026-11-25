@@ -363,6 +363,12 @@ def answer(scope, sid, focus, messages):
     if j is not None:
         try: j = jobs.load(sid)
         except Exception: pass
+        try:
+            from . import actions
+            er = actions.handle(j, last, LAST.st(sid).get("last")) if not _re.search(r"\b(rename|retitle|delete|remove (?:the )?clip|get rid of)\b", last, _re.I) else None
+            if er: LAST.log(sid, "did: " + last[:60]); st_ = [c["id"] for c in j["clips"]]
+        except Exception as e: er = f"I could not do that ({type(e).__name__}: {str(e)[:120]})."
+        if er: yield er; return
         try: er = existing_command(j, last)
         except Exception as e: er = f"I could not do that ({type(e).__name__}: {str(e)[:100]})."
         if er: yield er; return
