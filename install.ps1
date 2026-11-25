@@ -1,11 +1,14 @@
 ﻿# Copyright (c) 2026 unlimitedera. All Rights Reserved.
 # Clipsurge installer for Windows 10/11.
 #   irm https://raw.githubusercontent.com/unlimitedera/Clipsurge/main/install.ps1 | iex
-# Options (when saved as a file):  .\install.ps1 -Dir D:\Clipsurge -Cpu -NoLaunch -NoShortcut
+# With options:
+#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/unlimitedera/Clipsurge/main/install.ps1))) -Dir D:\Clipsurge -Cpu
+# Options: -Dir <folder>  -Cpu  -NoLaunch  -NoShortcut  -Branch <name>
+function Install-Clipsurge {
 param(
-  [string]$Dir = (Join-Path $env:LOCALAPPDATA "Clipsurge"),
+  [string]$Dir = $(if ($env:CLIPSURGE_DIR) { $env:CLIPSURGE_DIR } else { Join-Path $env:LOCALAPPDATA "Clipsurge" }),
   [string]$Branch = "main",
-  [switch]$Cpu,
+  [switch]$Cpu = [bool]$env:CLIPSURGE_CPU,
   [switch]$NoLaunch,
   [switch]$NoShortcut
 )
@@ -16,7 +19,7 @@ $Repo = "unlimitedera/Clipsurge"
 
 function Step($m) { Write-Host ""; Write-Host "==> $m" -ForegroundColor Green }
 function Info($m) { Write-Host "    $m" -ForegroundColor Gray }
-function Fail($m) { Write-Host ""; Write-Host "Install stopped: $m" -ForegroundColor Red; exit 1 }
+function Fail($m) { throw $m }
 function Have($c) { [bool](Get-Command $c -ErrorAction SilentlyContinue) }
 
 Write-Host ""
@@ -142,3 +145,11 @@ Write-Host "Clipsurge is installed." -ForegroundColor Green
 Write-Host "Start it any time from the Desktop shortcut, or run: $Dir\start.bat"
 Write-Host "It opens at http://127.0.0.1:8420  (only this computer can reach it)."
 if (-not $NoLaunch) { Start-Process (Join-Path $Dir "start.bat") -WorkingDirectory $Dir }
+}
+
+try { Install-Clipsurge @args }
+catch {
+  Write-Host ""
+  Write-Host "Install stopped: $($_.Exception.Message)" -ForegroundColor Red
+  Write-Host "Nothing is broken: run the same command again, or see docs/INSTALL.md." -ForegroundColor Yellow
+}

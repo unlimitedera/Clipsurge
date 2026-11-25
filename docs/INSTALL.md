@@ -32,11 +32,10 @@ That is all. Next time, use the **Clipsurge** shortcut on your Desktop or Start 
 
 ## Options
 
-Save the script first, then run it with options:
+Add options after the command:
 
 ```powershell
-irm https://raw.githubusercontent.com/unlimitedera/Clipsurge/main/install.ps1 -OutFile install.ps1
-.\install.ps1 -Dir D:\Clipsurge -Cpu
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/unlimitedera/Clipsurge/main/install.ps1))) -Dir D:\Clipsurge -Cpu
 ```
 
 | Option | Meaning |
@@ -47,7 +46,9 @@ irm https://raw.githubusercontent.com/unlimitedera/Clipsurge/main/install.ps1 -O
 | `-NoShortcut` | Do not create shortcuts. |
 | `-Branch <name>` | Install a different branch. |
 
-If PowerShell says scripts are disabled, you are probably running a saved file. Run it once with `powershell -ExecutionPolicy Bypass -File .\install.ps1`. The one-line command above does not need this.
+You can also set them as environment variables before the one-line command: `$env:CLIPSURGE_DIR = "D:\Clipsurge"` and `$env:CLIPSURGE_CPU = "1"`.
+
+If you saved the script as a file and PowerShell says scripts are disabled, run `powershell -ExecutionPolicy Bypass -File .\install.ps1`. The one-line command does not need this.
 
 ## Update
 
