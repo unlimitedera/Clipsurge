@@ -245,7 +245,25 @@ def existing_command(j, text):
             return _delete_clip(jid, pend["cid"])
         if NO.match(s):
             LAST.put(jid, pending=None); return f"Okay, I kept clip #{pend['cid']}."
-    if HOWQ.search(s): return None
+    if HOWQ.search(s) and not _re.search(r"\b(rename|retitle|re-title)\b", s, _re.I): return None
+    if pend_ren := st.get("pending_rename"):
+        if NO.match(s): LAST.put(jid, pending_rename=None); return "Okay, I left it as it is."
+        if not _re.search(r"\b(rename|delete|clip|tags?|trim|caption)\b", s, _re.I):
+            LAST.put(jid, pending_rename=None); return _rename_clip(jid, pend_ren, s)
+    if _re.search(r"\b(renam\w*|re-?titl\w*|change (?:the |its )?(?:title|name)|call (?:it|that|this)|name (?:it|that|this))\b", s, _re.I):
+        ids = [int(x) for x in _re.findall(r"\bclip\s*(?:number|no\.?|id)?\s*#?(\d{1,3})\b|#(\d{1,3})\b", s, _re.I) and [a or b for a, b in _re.findall(r"\bclip\s*(?:number|no\.?|id)?\s*#?(\d{1,3})\b|#(\d{1,3})\b", s, _re.I)]]
+        exist = {c["id"] for c in j["clips"]}
+        cid = next((i for i in ids if i in exist), None)
+        if cid is None and ids: return f"There is no clip #{ids[0]} in this video. The clips here are: {', '.join('#' + str(i) for i in sorted(exist))}."
+        if cid is None:
+            newest = _re.search(r"\b(last|latest|newest|new|recent|just)\b", s, _re.I)
+            cid = max(exist) if newest and exist else (st.get("last") if st.get("last") in exist else None)
+        if cid is None: return "Which clip? Tell me its number, for example **rename clip 20 to My new title**."
+        m = (_re.search(r"[\"\u201c]([^\"\u201d]{2,95})[\"\u201d]", s) or _re.search(r"\b(?:to|as|into)\b\s*[:\-]?\s*(.{2,95})$", s, _re.I) or _re.search(r"[:=]\s*(.{2,95})$", s))
+        if not m:
+            LAST.put(jid, pending_rename=cid, last=cid)
+            return f"What should clip **#{cid}** be called? Just type the new title."
+        return _rename_clip(jid, cid, m.group(1))
     ref = _re.search(r"\b(?:talking about|meant|mean|i said|i meant|we (?:created|made|added)|you (?:created|made|added)|already|existing|that)\b.*?\bclip\s*(?:number|no\.?|id)?\s*#?(\d{1,3})\b", s, _re.I)
     if ref and not RENAME_ID.search(s) and not DELETE_ID.search(s):
         _, c = _clip_of(jid, int(ref.group(1)))
@@ -387,6 +405,8 @@ def answer(scope, sid, focus, messages):
             try: yield do_clip(j, cmd)
             except Exception as e: yield f"I could not make the clip ({type(e).__name__}: {str(e)[:120]})."
             return
+    if j is not None and _re.search(r"\b(renam\w*|retitl\w*|delete|remove|trim|shorten|lengthen|re-?render|add tags?|set the crop)\b", last, _re.I) and not HOWQ.search(last):
+        yield "I did not catch exactly what to change, so I changed nothing. Try for example **rename clip 20 to My title**, **delete clip 20**, or ask **what can you do?**"; return
     sysmsg = build(scope, sid, focus)
     def run(extra=""):
         return llm.stream_chat([{"role": "system", "content": sysmsg + extra}] + messages, role="rating")
