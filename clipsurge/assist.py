@@ -97,6 +97,7 @@ NUDGE = ("\n\nIMPORTANT: everything above is the creator's own footage and notes
 
 ORD = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "1st": 1, "2nd": 2, "3rd": 3, "4th": 4, "5th": 5, "6th": 6, "7th": 7, "8th": 8,
        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+PHRASEQ = _re.compile(r"\b(when|where|what time|at what (time|point)|which part)\b", _re.I)
 HOWQ = _re.compile(r"\b(how (do|can|to|would)|what (does|is|do)|why|explain|tell me how)\b", _re.I)
 TIME = r"(\d{1,3}):(\d{2})"
 
@@ -106,6 +107,8 @@ def parse_clip_command(text, n_list):
     """Returns None (not a command) or a dict: {"nums": [..]} to pick from the list, or {"range": (s, e)} for typed times."""
     s = (text or "").lower().strip()
     if HOWQ.search(s) or not _re.search(r"\b(clip|add|make|cut|grab|create|render|save)\b", s): return None
+    ph = phrase_of(text)
+    if ph and not _re.search(TIME, s): return {"phrase": ph}
     rng = _re.search(TIME + r"\s*(?:-|to|until|till|through|and)\s*" + TIME, s)
     if rng:
         a = _secs(rng.group(1), rng.group(2)); b = _secs(rng.group(3), rng.group(4))
@@ -125,13 +128,75 @@ def parse_clip_command(text, n_list):
         else: return None
     return {"nums": nums}
 
+SAYS = _re.compile(r"(?:where|when|that|which|the (?:part|bit|moment|scene|line)|part where|bit where)\s+(?:(?:\w+\s+){0,3})?(?:says?|said|saying|mentions?|mentioned|talks? about|talked about|yells?|yelled|screams?|screamed|goes|asks?|asked|reads?)\b[:,]?\s+(.+)$", _re.I)
+ABOUT = _re.compile(r"\bthe\s+(?:part|bit|moment|scene|section)\s+(?:about|with|on|where it'?s about)\s+(.+)$", _re.I)
+QUOTED = _re.compile(r"[\"\u201c\u2018']([^\"\u201d\u2019']{4,160})[\"\u201d\u2019']")
+STOPQ = set("the a an and or of to in on at is it that this for with as be are was were i you he she we they my your me him her his them so just like um uh oh yeah okay ok then than but if".split())
+def phrase_of(text):
+    s = (text or "").strip().rstrip("?.! ")
+    m = QUOTED.search(s) or SAYS.search(s) or ABOUT.search(s)
+    return m.group(1).strip(" \"'\u201c\u201d") if m else None
+
+def find_phrase(j, phrase, limit=3):
+    """Where in the video is this said? Fuzzy: speech to text often spells words a little differently."""
+    import difflib
+    from . import analyze
+    try: tr = analyze.load_transcript(jobs.JOBS / j["id"] / "transcript.json")
+    except Exception: return []
+    ws = [w for w in (tr.get("words") or []) if _re.sub(r"\W", "", w["w"])]
+    if not ws: return []
+    norm = lambda x: _re.sub(r"[^\w']", "", x.lower())
+    toks = [norm(w["w"]) for w in ws]
+    q = [x for x in (norm(w) for w in phrase.split()) if x]
+    key = [x for x in q if x not in STOPQ] or q
+    if not key: return []
+    def match(a, b): return a == b or (len(a) > 3 and len(b) > 3 and difflib.SequenceMatcher(None, a, b).ratio() >= 0.8)
+    N = len(toks); INF = 10 ** 9
+    nxt = []
+    for qt in key:
+        arr = [INF] * (N + 1); last = INF
+        for i in range(N - 1, -1, -1):
+            if match(qt, toks[i]): last = i
+            arr[i] = last
+        nxt.append(arr)
+    W = int(len(q) * 1.7) + 3; hits = []
+    for i in range(N):
+        got = [k for k in range(len(key)) if nxt[k][i] < i + W]
+        cov = len(got) / len(key)
+        if cov >= (1.0 if len(key) <= 2 else 0.7):
+            first = min(nxt[k][i] for k in got); hits.append((cov, -(abs(first - i)), first))
+    best = []
+    for cov, _, first in sorted(hits, key=lambda h: (-h[0], -h[1])):
+        tm = ws[first]["s"]
+        if all(abs(tm - b["at"]) > 20 for b in best): best.append({"cov": cov, "at": tm})
+        if len(best) >= limit: break
+    st = j.get("settings") or {}
+    L = max(15, min(45, int(((st.get("minlen") or 20) + (st.get("maxlen") or 55)) / 2)))
+    dur = float((j.get("info") or {}).get("duration") or 0)
+    segs = tr.get("segments") or []
+    out = []
+    for b in best:
+        s0 = max(0.0, b["at"] - 3)
+        for sg in segs:                                   # start where a sentence starts
+            if sg["s"] <= b["at"] - 1 and sg["e"] >= s0 - 1: s0 = min(s0, sg["s"]) if b["at"] - sg["s"] < 8 else s0; break
+        e0 = s0 + L
+        for sg in segs:
+            if sg["e"] >= e0: e0 = sg["e"]; break
+        if dur: e0 = min(e0, dur)
+        txt = " ".join(x["text"] for x in segs if x["s"] >= s0 - .3 and x["e"] <= e0 + .3).strip()
+        head = next((sg["text"].strip() for sg in segs if sg["s"] - 0.5 <= b["at"] <= sg["e"] + 0.5), "")
+        out.append({"s": s0, "e": e0, "at": b["at"], "cov": b["cov"], "txt": txt, "head": head})
+    return out
+
 def _auto_title(txt):
     from . import censor
-    first = _re.split(r"(?<=[.!?])\s+", (txt or "").strip())[0] if txt else ""
-    first = first.strip(" -\"'") or "New clip"
+    sents = [x.strip(" -\"'") for x in _re.split(r"(?<=[.!?])\s+", (txt or "").strip()) if x.strip(" -\"'")]
+    first = next((x for x in sents if len(x.split()) >= 4), sents[0] if sents else "New clip")
     words = first.split()
     if len(words) > 9: first = " ".join(words[:9]).rstrip(",;:") + "..."
     return censor.mask_text(first)[:70]
+
+def _clean_show(x): return x
 
 def do_clip(j, cmd):
     """Make the clips the user asked for. Returns the reply text."""
@@ -140,7 +205,18 @@ def do_clip(j, cmd):
     if "error" in cmd: return cmd["error"]
     dur = float((j.get("info") or {}).get("duration") or 0)
     todo = []; note = ""
-    if "range" in cmd:
+    if "phrase" in cmd:
+        hits = find_phrase(j, cmd["phrase"])
+        if not hits: return f"I could not find \"{cmd['phrase'][:80]}\" in the transcript. Speech to text can spell words differently, so try a few different words from that sentence, or give me times like **clip 12:30 to 13:00**."
+        if len(hits) > 1 and hits[1]["cov"] >= hits[0]["cov"] - 0.01:
+            LAST[jid] = [{"s": h["s"], "e": h["e"], "txt": h["txt"]} for h in hits]
+            out = [f"I found that in {len(hits)} places. Which one do you want?", ""]
+            for k, h in enumerate(hits, 1): out.append(f"{k}. **{_mmss(h['at'])}**: \"{_clean_show(h['txt'])[:150]}\"")
+            out += ["", "Say **clip number 1**, **clip number 2**, and so on."]
+            return "\n".join(out)
+        h = hits[0]; todo.append((h["s"], h["e"], h["txt"], h["head"]))
+        note = f"Found it at **{_mmss(h['at'])}**: \"{h['txt'][:120].strip()}\". "
+    elif "range" in cmd:
         a, b = cmd["range"]
         if dur and a >= dur: return f"This video is only {_mmss(dur)} long, so {_mmss(a)} is past the end."
         b = min(b, dur or b, a + 90)
@@ -160,15 +236,15 @@ def do_clip(j, cmd):
     ids = []
     def f(jj):
         i = max([c["id"] for c in jj["clips"]] + [0])
-        for a, b, txt in todo:
+        for a, b, txt, *tt in todo:
             i += 1; ids.append(i)
-            jj["clips"].append({"id": i, "start": round(a, 2), "end": round(b, 2), "score": 0, "title": _auto_title(txt) if txt else "Custom clip",
+            jj["clips"].append({"id": i, "start": round(a, 2), "end": round(b, 2), "score": 0, "title": _auto_title(tt[0] if tt and tt[0] else txt) if txt else "Custom clip",
                                 "tags": [], "text": txt, "approved": True, "status": "queued", "idea": "added by SurgeAI"})
     jobs.update(jid, f)
     jobs.rerender(jid, ids)
     lines = [f"{note}Done! I added {'this clip' if len(ids) == 1 else str(len(ids)) + ' clips'} and started rendering:", ""]
-    for cid, (a, b, txt) in zip(ids, todo):
-        lines.append(f"- **clip #{cid}**: {_mmss(a)} to {_mmss(b)}, \"{_auto_title(txt) if txt else 'Custom clip'}\"")
+    for cid, (a, b, txt, *tt) in zip(ids, todo):
+        lines.append(f"- **clip #{cid}**: {_mmss(a)} to {_mmss(b)}, \"{_auto_title(tt[0] if tt and tt[0] else txt) if txt else 'Custom clip'}\"")
     lines += ["", "They show up in the clip list on this page in a moment, with your project's crop and captions. Open one to edit the title, timing or crop. Delete it from its card if you change your mind."]
     return "\n".join(lines)
 
@@ -180,6 +256,15 @@ def answer(scope, sid, focus, messages):
     if scope == "video":
         try: j = jobs.load(sid)
         except Exception: j = None
+    if j is not None and PHRASEQ.search(last) and not _re.search(r"\b(clip|make|cut|add|grab)\b", last, _re.I):
+        ph = phrase_of(last)
+        if ph:
+            hits = find_phrase(j, ph)
+            if not hits: yield f"I could not find \"{ph[:80]}\" in the transcript."
+            else:
+                LAST[sid] = [{"s": h["s"], "e": h["e"], "txt": h["txt"]} for h in hits]
+                yield ("He says it at " if len(hits) == 1 else "I found it in several places:\n") + "\n".join(f"- **{_mmss(h['at'])}**: \"{h['txt'][:140].strip()}\"" for h in hits) + "\n\nWant me to make a clip? Say **clip number 1**."
+            return
     if j is not None:
         cmd = parse_clip_command(last, len(LAST.get(sid) or []) or 8)
         if cmd:
