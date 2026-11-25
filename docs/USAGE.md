@@ -221,6 +221,7 @@ Nothing can promise a video goes viral. Clipsurge only suggests tags that fit th
 
 On any project page and any video page there is a **SurgeAI** button at the bottom left. It opens a chat panel with SurgeAI, a little animated bot who talks to the model you connected in Settings > AI and agents (LM Studio, Ollama, or the model Clipsurge runs for you).
 
+- When nobody is talking to him, SurgeAI does his own thing: he draws, eats a cookie, scrolls his phone, reads a book, drinks coffee, listens to music with headphones, or takes a nap. He picks one at random, and every move blends smoothly into the next. If you set your system to reduce motion, he stays still.
 - SurgeAI reacts while you chat: it waves hello, leans in while you type, thinks (with a thought bubble) while the model works, talks while the answer streams in, then celebrates. If the model cannot be reached, it looks sad.
 - Clipsurge shares a short briefing with your model: the goals, the clips with their scores and what is said in them, the start of the transcript, your upload results and the trending tags it already looked up. Nothing leaves your computer unless your model is a cloud one.
 - On a video page, **Focus on** lets you pick one clip, for example "why did clip 4 score low?".

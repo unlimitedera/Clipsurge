@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 unlimitedera. All Rights Reserved. SurgeAI: chat with your AI model about a project or a video. */
 (function(){
- const fab=document.createElement("button");fab.id="askfab";fab.hidden=true;fab.title="Ask SurgeAI";fab.innerHTML=`<span class="fb">${surgeBot(24)}</span><span>SurgeAI</span>`;
+ const fab=document.createElement("button");fab.id="askfab";fab.hidden=true;fab.title="Ask SurgeAI";fab.innerHTML=`<span class="fb">${surgeBot(24)}</span><span class="sname"><b>Surge</b>AI</span>`;
  document.body.appendChild(fab);
  let panel=null,scope=null,busy=false,ctl=null;
  const key=()=>"ct_chat_"+scope.scope+"_"+scope.id;
@@ -30,7 +30,7 @@
  function open(){
   if(panel)return;sync();if(!scope)return;
   panel=document.createElement("aside");panel.id="askpanel";
-  panel.innerHTML=`<div class="ah"><div class="abot" id="askBot">${surgeBot(46,"wave")}</div><div class="ttl"><b>SurgeAI</b><div class="mu small" id="askctx"></div></div><div class="row" style="gap:6px"><button class="g sm" data-clr title="Clear this chat">Clear</button><button class="g sm" data-cl title="Close">✕</button></div></div>
+  panel.innerHTML=`<div class="ah"><div class="abot" id="askBot">${surgeBot(46,"wave")}</div><div class="ttl"><span class="sname big"><b>Surge</b>AI</span><div class="mu small" id="askctx"></div></div><div class="row" style="gap:6px"><button class="g sm" data-clr title="Clear this chat">Clear</button><button class="g sm" data-cl title="Close">✕</button></div></div>
    ${scope.scope=="video"?`<div class="af"><label class="small mu">Focus on<select id="askClip"><option value="">the whole video</option></select></label></div>`:""}
    <div class="alog" id="askLog" aria-live="polite"></div>
    <div class="asug" id="askSug"></div>
@@ -41,7 +41,7 @@
   if(scope.scope=="video")jget("/api/jobs/"+scope.id).then(j=>{const sel=$("askClip");if(!sel)return;(j.clips||[]).forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=`#${c.id} ${(c.title||"").slice(0,40)} (${c.score})`;sel.appendChild(o)})}).catch(()=>{});
   const log=$("askLog");const bots=()=>panel?panel.querySelectorAll(".sai"):[];const st=(s,ms)=>{if(panel)botState(panel,s,ms)};
   st("wave",2100);
-  const draw=()=>{const h=load();log.innerHTML=h.length?h.map(m=>`<div class="am ${m.role}">${m.role=="user"?`<p>${esc(m.content)}</p>`:md(m.content)}${m.role=="assistant"?`<button class="g sm acp" data-copy>Copy</button>`:""}</div>`).join(""):`<div class="aintro">${surgeBot(54,"wave")}<div class="mu small">Hi, I'm <b style="color:var(--lime)">SurgeAI</b>. Ask me anything about ${scope.scope=="video"?"this video and its clips":"this project"}. I can see its goals, clips, scores, transcript and your upload results, so my answers fit.</div></div>`;
+  const draw=()=>{const h=load();log.innerHTML=h.length?h.map(m=>`<div class="am ${m.role}">${m.role=="user"?`<p>${esc(m.content)}</p>`:md(m.content)}${m.role=="assistant"?`<button class="g sm acp" data-copy>Copy</button>`:""}</div>`).join(""):`<div class="aintro">${surgeBot(54,"wave")}<div class="mu small">Hi, I'm <span class="sname"><b>Surge</b>AI</span>. Ask me anything about ${scope.scope=="video"?"this video and its clips":"this project"}. I can see its goals, clips, scores, transcript and your upload results, so my answers fit.</div></div>`;
    $("askSug").style.display=h.length?"none":"flex";log.scrollTop=log.scrollHeight;wire()};
   $("askSug").innerHTML=SUGG[scope.scope].map(t=>`<button class="chip3" data-q="${esc(t)}">${esc(t)}</button>`).join("");
   const wire=()=>{log.querySelectorAll("[data-tag]").forEach(b=>b.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(b.dataset.tag);toast("Copied "+b.dataset.tag)});
