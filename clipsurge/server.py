@@ -3,10 +3,10 @@
 import datetime, json, shutil, threading
 from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from . import platforms, tiktok, insights, updater, transfers, library, models, jobs, llm, youtube, extras, settings, projects, fsbrowse, analyze
+from . import assist, platforms, tiktok, insights, updater, transfers, library, models, jobs, llm, youtube, extras, settings, projects, fsbrowse, analyze
 from .config import JOBS, WEB, DATA, ROOT
 
 app = FastAPI(title="Clipsurge")
@@ -579,6 +579,25 @@ class UploadBody(BaseModel):
     tags: list[str] | None = None
     description: str | None = None
     privacy: str | None = None
+
+class ChatIn(BaseModel):
+    scope: str                      # "project" or "video"
+    id: str
+    clip: int | None = None         # optional clip to focus on
+    messages: list[dict]
+
+@app.post("/api/chat")
+def chat(b: ChatIn):
+    """Ask the connected AI model about a project or video. Streams plain text."""
+    if b.scope not in ("project", "video"): raise HTTPException(400, "unknown scope")
+    try: system = assist.build(b.scope, b.id, b.clip)
+    except Exception as e: raise HTTPException(404, "Could not read that project or video")
+    msgs = [{"role": "system", "content": system}]
+    for m in b.messages[-12:]:
+        if m.get("role") in ("user", "assistant") and str(m.get("content", "")).strip():
+            msgs.append({"role": m["role"], "content": str(m["content"])[:4000]})
+    if len(msgs) < 2 or msgs[-1]["role"] != "user": raise HTTPException(400, "Ask a question first")
+    return StreamingResponse(llm.stream_chat(msgs, role="rating"), media_type="text/plain; charset=utf-8", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 @app.get("/api/platforms")
 def platforms_info():

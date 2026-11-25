@@ -217,7 +217,17 @@ It matches whole words in English, Spanish, French, German, Turkish and Arabic, 
 
 Nothing can promise a video goes viral. Clipsurge only suggests tags that fit the topic.
 
-## 18. Updates
+## 18. Ask AI
+
+On any project page and any video page there is an **Ask AI** button at the bottom left. It opens a chat panel with the model you connected in Settings > AI and agents (LM Studio, Ollama, or the model Clipsurge runs for you).
+
+- Clipsurge shares a short briefing with your model: the goals, the clips with their scores and what is said in them, the start of the transcript, your upload results and the trending tags it already looked up. Nothing leaves your computer unless your model is a cloud one.
+- On a video page, **Focus on** lets you pick one clip, for example "why did clip 4 score low?".
+- Try the suggestions: better titles, tags for this video, how to raise low scores, which moments you may have missed, ideas for the next clips.
+- Click a #hashtag in an answer to copy it. **Copy** copies a whole answer. The chat is kept per project and video; **Clear** erases it.
+- A small model gives weaker answers. A bigger one reasons better about scores. Answers can be wrong, and nobody can promise a video will go viral.
+
+## 19. Updates
 
 When a new version is on GitHub, an **Update** button appears in the top bar. Click it to see what changed, then **Update now**. Clipsurge downloads the new files, checks them, installs them and restarts, then the page reloads on its own. Your projects, videos, clips, settings and YouTube key are not touched. If a video is processing, wait for it to finish first.
 

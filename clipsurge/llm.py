@@ -84,6 +84,52 @@ def _chat(p, mid, messages, max_tokens, temperature=0.3):
     r.raise_for_status()
     return r.json()["choices"][0]["message"]["content"] or ""
 
+def stream_chat(messages, role="rating", max_tokens=1400, temperature=0.6):
+    """Yields the answer piece by piece. Hidden reasoning (<think>...</think>) is never shown."""
+    p = provider(role); mid = model_id(role)
+    if not p or not mid:
+        yield "No AI model is connected. Add one under Settings > AI and agents (LM Studio, Ollama, or a model Clipsurge runs for you), then ask again."
+        return
+    url = p["base_url"].rstrip("/") + "/chat/completions"
+    body = {"model": mid, "temperature": temperature, "max_tokens": max_tokens, "messages": messages, "stream": True}
+    try:
+        for extra in ({"reasoning_effort": "none"}, {}):
+            with httpx.stream("POST", url, headers=_headers(p), json={**body, **extra}, timeout=httpx.Timeout(180, connect=8)) as r:
+                if r.status_code == 400 and extra:
+                    continue                               # this server does not know reasoning_effort
+                if r.status_code >= 400:
+                    r.read(); yield f"The model returned an error ({r.status_code}): {r.text[:160]}"; return
+                buf, hidden, got = "", False, False
+                for line in r.iter_lines():
+                    if not line.startswith("data:"): continue
+                    d = line[5:].strip()
+                    if d == "[DONE]": break
+                    try: piece = json.loads(d)["choices"][0].get("delta", {}).get("content") or ""
+                    except Exception: continue
+                    buf += piece
+                    while True:                            # drop <think> blocks, even when split across chunks
+                        if hidden:
+                            k = buf.find("</think>")
+                            if k < 0: buf = buf[-8:]; break
+                            buf = buf[k + 8:]; hidden = False
+                        else:
+                            k = buf.find("<think>")
+                            if k >= 0:
+                                if buf[:k]: got = True; yield buf[:k]
+                                buf = buf[k + 7:]; hidden = True
+                            else:
+                                keep = 7 if buf.endswith(("<", "<t", "<th", "<thi", "<thin", "<think")) else 0
+                                out, buf = (buf[:-keep], buf[-keep:]) if keep else (buf, "")
+                                if out: got = True; yield out
+                                break
+                if buf and not hidden: got = True; yield buf
+                if not got: yield "(The model sent an empty answer. Try again, or use a model that is not a reasoning model.)"
+                return
+    except httpx.ConnectError:
+        yield f"Cannot reach the model at {p['base_url']}. Is it running?"
+    except Exception as e:
+        yield f"The model call failed ({type(e).__name__}: {str(e)[:120]})"
+
 def chat_json(system, user, max_tokens=2000, role="rating"):
     p = provider(role)
     mid = model_id(role)
