@@ -63,7 +63,7 @@ Full guide, options and troubleshooting: [docs/INSTALL.md](docs/INSTALL.md)
 | **Manual clipping** | Watch the full video and mark your own clips on a loudness timeline. |
 | **Editor** | Timing, crop, captions, sound (noise reduction, voice effects, music with ducking), look (speed, fades, colour). |
 | **Upload** | Send clips to YouTube Shorts and TikTok with a live progress box. Each platform's rules, limits and a warning before bursts of posts are built in: [docs/PLATFORMS.md](docs/PLATFORMS.md). |
-| **Ask AI** | Chat with your own model inside any project or video: ideas for clips, titles, tags, and how to raise scores. It sees your goals, clips, scores, transcript and upload results. |
+| **SurgeAI** | Meet SurgeAI, the animated bot that lives in every project and video. Chat with your own model: ideas for clips, titles, tags, and how to raise scores. It sees your goals, clips, scores, transcript and upload results. |
 | **Agents** | Control everything from Hermes, Claude Code or any MCP client. |
 | **Bad language filter** | Captions show F*** and the title narrator only says the first part of a curse word. Set it globally, per project, per video or per clip. |
 | **Learns from your uploads** | Reads the views, likes and comments of what you post, shows what works for you, and adds fitting trending tags to uploads. |

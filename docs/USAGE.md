@@ -217,10 +217,11 @@ It matches whole words in English, Spanish, French, German, Turkish and Arabic, 
 
 Nothing can promise a video goes viral. Clipsurge only suggests tags that fit the topic.
 
-## 18. Ask AI
+## 18. SurgeAI
 
-On any project page and any video page there is an **Ask AI** button at the bottom left. It opens a chat panel with the model you connected in Settings > AI and agents (LM Studio, Ollama, or the model Clipsurge runs for you).
+On any project page and any video page there is a **SurgeAI** button at the bottom left. It opens a chat panel with SurgeAI, a little animated bot who talks to the model you connected in Settings > AI and agents (LM Studio, Ollama, or the model Clipsurge runs for you).
 
+- SurgeAI reacts while you chat: it waves hello, leans in while you type, thinks (with a thought bubble) while the model works, talks while the answer streams in, then celebrates. If the model cannot be reached, it looks sad.
 - Clipsurge shares a short briefing with your model: the goals, the clips with their scores and what is said in them, the start of the transcript, your upload results and the trending tags it already looked up. Nothing leaves your computer unless your model is a cloud one.
 - On a video page, **Focus on** lets you pick one clip, for example "why did clip 4 score low?".
 - Try the suggestions: better titles, tags for this video, how to raise low scores, which moments you may have missed, ideas for the next clips.
