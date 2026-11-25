@@ -597,7 +597,7 @@ def chat(b: ChatIn):
         if m.get("role") in ("user", "assistant") and str(m.get("content", "")).strip():
             msgs.append({"role": m["role"], "content": str(m["content"])[:4000]})
     if len(msgs) < 2 or msgs[-1]["role"] != "user": raise HTTPException(400, "Ask a question first")
-    return StreamingResponse(llm.stream_chat(msgs, role="rating"), media_type="text/plain; charset=utf-8", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return StreamingResponse(assist.answer(b.scope, b.id, b.clip, [m for m in msgs if m["role"] != "system"]), media_type="text/plain; charset=utf-8", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 @app.get("/api/platforms")
 def platforms_info():
