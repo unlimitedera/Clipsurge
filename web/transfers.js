@@ -47,7 +47,7 @@ async function transfersView(){
  app().innerHTML=`<div class="phead"><div><h1>Uploads and downloads</h1><p class="mu">What you sent to YouTube, and what Clipsurge and you saved to this computer.</p></div></div>
   <div class="two big2"><div class="card"><div class="row sp"><h3 style="margin:0">Uploads</h3><button class="g sm" id="upClr">Clear finished</button></div><div id="upList"></div></div>
   <div class="card"><div class="row sp"><h3 style="margin:0">Downloaded clips</h3><button class="g sm" id="dlClr">Clear list</button></div><div id="dlClips"></div>
-  <h3 style="margin-top:22px">Videos fetched from links</h3><div id="dlVids"></div></div></div>`;
+  <div class="row sp" style="margin-top:22px"><h3 style="margin:0">Videos fetched from links</h3><button class="g sm" id="dlVidAll" hidden>Delete all</button></div><p class="mu small" style="margin:6px 0 0">The downloaded originals are the big files. Deleting one frees the space and keeps your clips. Clipsurge downloads it again if you redo a step or make a new clip.</p><div id="dlVids"></div></div></div>`;
  $("upClr").onclick=async()=>{await api("/api/uploads",{method:"DELETE"});upKick()};
  $("dlClr").onclick=async()=>{await api("/api/downloads",{method:"DELETE"});transfersLoad()};
  drawTransfersUploads();transfersLoad();
@@ -67,10 +67,21 @@ async function transfersLoad(){
  let d;try{d=await jget("/api/downloads")}catch(e){return}
  const c=$("dlClips"),v=$("dlVids");if(!c)return;
  morphInto(c,d.clips.length?d.clips.map(x=>`<div class="trow"><div class="grow"><div class="utt">${esc(x.title||"Clip")}</div><div class="mu small">${when(x.t)} · ${esc(x.kind.toUpperCase())}</div></div><span class="mono mu small">${x.size?sz(x.size):""}</span></div>`).join(""):`<p class="mu small" style="margin-top:12px">No clips downloaded yet. Use the MP4 link on a clip.</p>`);
- morphInto(v,d.videos.length?d.videos.map(x=>`<div class="trow"><div class="grow"><a class="utt" href="#/p/${x.project}/v/${x.id}">${esc(x.title||x.id)}</a><div class="mu small">${x.t?when(x.t):""} · ${esc((x.source||"").replace(/^https?:\/\//,"").slice(0,60))}</div></div><span class="mono mu small">${sz(x.size)}</span></div>`).join(""):`<p class="mu small">No videos yet.</p>`)}
+ morphInto(v,d.videos.length?d.videos.map(x=>`<div class="trow"><div class="grow"><a class="utt" href="#/p/${x.project}/v/${x.id}">${esc(x.title||x.id)}</a><div class="mu small">${x.t?when(x.t):""} · ${esc((x.source||"").replace(/^https?:\/\//,"").slice(0,60))}</div></div><span class="mono mu small">${sz(x.size)}</span><button class="g sm" data-dv="${x.id}" data-sz="${x.size}" title="Delete the downloaded video to free space">Delete</button></div>`).join(""):`<p class="mu small">No videos yet.</p>`);
+ const all=$("dlVidAll");if(all){all.hidden=!d.videos.length;all.dataset.sz=d.videos.reduce((a,x)=>a+x.size,0);all.dataset.n=d.videos.length}}
 
 /* log clip downloads (MP4/SRT/ASS links on a clip card) */
 document.addEventListener("click",e=>{const a=e.target.closest&&e.target.closest("a[download]");if(!a)return;
  const m=(a.getAttribute("href")||"").match(/^\/files\/([^/]+)\/clips\/clip(\d+)\.(\w+)$/);if(!m)return;
  post("/api/downloads/clip",{jid:m[1],cid:+m[2],kind:m[3]}).catch(()=>{})},true);
+document.addEventListener("click",async e=>{
+ const one=e.target.closest&&e.target.closest("[data-dv]"),all=e.target.closest&&e.target.closest("#dlVidAll");
+ if(!one&&!all)return;
+ const b=one||all,size=sz(+b.dataset.sz||0);
+ const ok=await confirmBox(one?"Delete downloaded video":"Delete all downloaded videos",one?`This frees ${size}. Your clips and transcript are kept. If you redo a step or make a new clip, Clipsurge downloads the video again (links only; a file from your PC must still exist).`:`This frees ${size} from ${b.dataset.n} video${b.dataset.n=="1"?"":"s"}. Your clips and transcripts are kept. Videos that are still processing are skipped. Clipsurge downloads a video again if you redo a step or make a new clip.`,"Delete");
+ if(!ok)return;
+ b.disabled=true;
+ const r=await api(one?"/api/downloads/video/"+one.dataset.dv:"/api/downloads/videos",{method:"DELETE"});
+ if(!r.ok){toast((await r.json().catch(()=>({}))).detail||"Could not delete","err");b.disabled=false;return}
+ const d=await r.json();toast("Freed "+sz(d.freed));transfersLoad()});
 upPoll();

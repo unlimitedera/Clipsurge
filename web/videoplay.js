@@ -16,6 +16,9 @@ function vplayInit(jid){
 async function vplayBuild(){
  const j=await jget("/api/jobs/"+VP.jid);
  if(!j.video){$("vpBody").innerHTML=`<p class="mu">The video is not downloaded yet. Come back when step 1 is done.</p>`;$("vpBody").dataset.ready="";return}
+ try{const h=await fetch(`/files/${VP.jid}/${encodeURIComponent(j.video)}`,{method:"HEAD"});if(!h.ok)throw 0}catch(e){
+  $("vpBody").innerHTML=`<p class="mu">The downloaded video was deleted to free space. Get it again to watch it and mark clips.</p><button id="vpRefetch">Get the video again</button>`;$("vpBody").dataset.ready="";
+  $("vpRefetch").onclick=async()=>{await post(`/api/jobs/${VP.jid}/redo`,{step:0,through_end:false});toast("Downloading the video again");$("vpBody").innerHTML=`<p class="mu">Downloading... open this again when the first step is done.</p>`};return}
  VP.dur=j.info?.duration||0;VP.clips=j.clips||[];const o=VP.o;
  const sel=(id,v,l)=>`<label>${l[0]}<select id="${id}">${l[1].map(([k,t])=>`<option value="${k}" ${String(v)===String(k)?"selected":""}>${t}</option>`).join("")}</select></label>`;
  $("vpBody").innerHTML=`<div class="vpwrap" id="vpWrap"><video id="vpVid" controls preload="metadata" playsinline src="/files/${VP.jid}/${encodeURIComponent(j.video)}"></video><div id="vpCrop" class="hide" title="Drag to place the crop"><i></i></div></div>

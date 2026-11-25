@@ -635,6 +635,30 @@ def log_dl(b: ClipDl):
     except Exception: pass
     return {"ok": True}
 
+@app.delete("/api/downloads/video/{jid}")
+def dl_delete_video(jid: str):
+    """Delete the downloaded source video of one video to free disk space. Clips and the transcript stay."""
+    return {"freed": _drop_source(jid)}
+
+@app.delete("/api/downloads/videos")
+def dl_delete_all_videos():
+    n = 0
+    for j in jobs.list_jobs():
+        try: n += _drop_source(j["id"])
+        except HTTPException: pass
+    return {"freed": n}
+
+def _drop_source(jid):
+    j = jobs.load(jid)
+    if j["state"] in ("running", "queued"): raise HTTPException(400, "Wait for this video to finish first")
+    freed = 0
+    for name in (j.get("video"), "audio.wav"):
+        p = JOBS / jid / name if name else None
+        if p and p.is_file():
+            try: freed += p.stat().st_size; p.unlink()
+            except OSError: raise HTTPException(400, "The file is in use. Try again in a moment.")
+    return freed
+
 @app.delete("/api/downloads")
 def dl_clear(): transfers.clear_downloads(); return {"ok": True}
 
@@ -644,6 +668,7 @@ def dl_list():
     for j in jobs.list_jobs():
         if not j.get("video"): continue
         f = JOBS / j["id"] / j["video"]
+        if not f.is_file(): continue
         vids.append({"id": j["id"], "title": j.get("title"), "project": j.get("project"), "source": j.get("source"),
                      "size": f.stat().st_size if f.is_file() else 0, "t": f.stat().st_mtime if f.is_file() else 0})
     return {"videos": sorted(vids, key=lambda v: -v["t"]), "clips": transfers.clips_downloaded()}

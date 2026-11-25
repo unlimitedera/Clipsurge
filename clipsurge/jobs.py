@@ -204,7 +204,7 @@ def run_job(jid, start=0, stop=4):
             try: from . import library; library.sync_async()      # the folder is named after the real title
             except Exception: pass
         else:
-            video = jd / job["video"]; info = job["info"]
+            video = _ensure_source(jid, T, log); info = load(jid)["info"]
         if stop <= 0: return _finish()
 
         if start <= 1:
@@ -264,9 +264,19 @@ def run_job(jid, start=0, stop=4):
         update(jid, lambda j: j.update(state="error", error=f"{type(e).__name__}: {e}"))
         log(traceback.format_exc()[-600:])
 
+def _ensure_source(jid, T, log):
+    """The source video, fetched again first if it was deleted from the Transfers tab to free disk space."""
+    job = load(jid); jd = JOBS / jid
+    if job.get("video") and (jd / job["video"]).exists(): return jd / job["video"]
+    log("The source video was deleted to save space: getting it again")
+    video, title, info = analyze.ingest(job["source"], jd, log, T)
+    update(jid, lambda j: j.update(info=info, video=video.name))
+    return video
+
 def render_all(jid, tr, log, only=None):
     T = PROG.setdefault(jid, Tracker(jid))
-    job = load(jid); st = job["settings"]; jd = JOBS / jid; video = jd / job["video"]
+    video = _ensure_source(jid, T, log)
+    job = load(jid); st = job["settings"]; jd = JOBS / jid
     if "webcam" not in job:   # find the webcam once per video, reuse for every clip
         if settings.get()["features"]["webcam_detect"]:
             try:
