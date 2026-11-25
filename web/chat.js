@@ -10,7 +10,7 @@
   const h=(location.hash||"").slice(1).split("?")[0];let m;
   if(m=h.match(/^\/p\/([^/]+)\/v\/([^/]+)/))return {scope:"video",id:m[2],pid:m[1]};
   if(m=h.match(/^\/p\/([^/]+)$/))return {scope:"project",id:m[1],pid:m[1]};
-  return null}
+  return {scope:"general",id:"all"}}
  function sync(){const w=where();fab.hidden=!w;
   if(!w){close();return}
   if(!scope||scope.id!==w.id){const was=!!panel;close();scope=w;if(was)open()}else scope=w}
@@ -25,7 +25,7 @@
    out.push(raw.trim()?`<p>${raw}</p>`:"")}
   if(list)out.push(`</${list}>`);
   return out.join("").replace(/(^|[\s>(])(#[\p{L}\p{N}_]{2,30})/gu,'$1<button class="hashc" data-tag="$2">$2</button>')}
- const SUGG={video:["Give me 5 better titles for my top clip","Which tags should I use for this video?","How can I raise the scores of the low clips?","Which moments did I probably miss?"],
+ const SUGG={general:["What should I clip next across my projects?","Which of my videos are doing best, and why?","Give me trending tags for my topic","Help me plan this week's uploads"],video:["Give me 5 better titles for my top clip","Which tags should I use for this video?","How can I raise the scores of the low clips?","Which moments did I probably miss?"],
              project:["What kind of clips should I look for next?","Give me ideas for the next 5 clips","How do I improve my average score?","Write a better description of what to look for"]};
  function open(){
   if(panel)return;sync();if(!scope)return;
@@ -37,11 +37,11 @@
    <div class="ain"><textarea id="askIn" rows="2" placeholder="Ask SurgeAI about ideas, titles, tags, or how to raise scores..."></textarea><button id="askGo">Send</button></div>
    <div class="mu small anote">Answers come from your connected model and the data Clipsurge has. They can be wrong, and nobody can promise a video will go viral.</div>`;
   document.body.appendChild(panel);fab.classList.add("on");
-  jget("/api/status").then(s=>{$("askctx").textContent=(scope.scope=="video"?"This video":"This project")+" · "+(s.llm?s.llm.slice(0,34):"no model connected")}).catch(()=>{});
+  jget("/api/status").then(s=>{$("askctx").textContent=({video:"This video",project:"This project",general:"All your projects"}[scope.scope])+" · "+(s.llm?s.llm.slice(0,34):"no model connected")}).catch(()=>{});
   if(scope.scope=="video")jget("/api/jobs/"+scope.id).then(j=>{const sel=$("askClip");if(!sel)return;(j.clips||[]).forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=`#${c.id} ${(c.title||"").slice(0,40)} (${c.score})`;sel.appendChild(o)})}).catch(()=>{});
   const log=$("askLog");const bots=()=>panel?panel.querySelectorAll(".sai"):[];const st=(s,ms)=>{if(panel)botState(panel,s,ms)};
   st("wave",2100);
-  const draw=()=>{const h=load();log.innerHTML=h.length?h.map(m=>`<div class="am ${m.role}">${m.role=="user"?`<p>${esc(m.content)}</p>`:md(m.content)}${m.role=="assistant"?`<button class="g sm acp" data-copy>Copy</button>`:""}</div>`).join(""):`<div class="aintro"><div class="mu small">Hi, I'm <span class="sname"><b>Surge</b>AI</span>. Ask me anything about ${scope.scope=="video"?"this video and its clips":"this project"}. I can see its goals, clips, scores, transcript and your upload results, so my answers fit.</div></div>`;
+  const draw=()=>{const h=load();log.innerHTML=h.length?h.map(m=>`<div class="am ${m.role}">${m.role=="user"?`<p>${esc(m.content)}</p>`:md(m.content)}${m.role=="assistant"?`<button class="g sm acp" data-copy>Copy</button>`:""}</div>`).join(""):`<div class="aintro"><div class="mu small">Hi, I'm <span class="sname"><b>Surge</b>AI</span>. Ask me anything about ${scope.scope=="video"?"this video and its clips":scope.scope=="project"?"this project":"your projects, clips and uploads"}. I can see the goals, clips, scores, transcript and your upload results, so my answers fit.</div></div>`;
    $("askSug").style.display=h.length?"none":"flex";log.scrollTop=log.scrollHeight;wire()};
   $("askSug").innerHTML=SUGG[scope.scope].map(t=>`<button class="chip3" data-q="${esc(t)}">${esc(t)}</button>`).join("");
   const wire=()=>{log.querySelectorAll("[data-tag]").forEach(b=>b.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(b.dataset.tag);toast("Copied "+b.dataset.tag)});

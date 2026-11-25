@@ -61,6 +61,17 @@ def build(scope, sid, focus=None):
         j = jobs.load(sid); pr = projects.get(j.get("project", "inbox"))
         ctx = f"PROJECT: {pr.get('name')} - {pr.get('description') or ''}\n" + _video_ctx(j, focus)
         topic = insights._topic(j.get("title") or "")
+    elif scope == "general":
+        ps = projects.all_projects(); js = jobs.list_jobs()
+        ctx = [f"The creator has {len(ps)} project(s) and {len(js)} video(s). They are asking from outside any one project, so help with the whole channel, planning, ideas, tags and how to use Clipsurge.", "PROJECTS:"]
+        allc = []
+        for p in ps[:15]:
+            pj = [x for x in js if x.get("project") == p["id"]]; cs = [c for x in pj for c in (x.get("clips") or [])]; sc = [c.get("score") or 0 for c in cs]
+            ctx.append(f"- {p.get('name')}: {len(pj)} videos, {len(cs)} clips, avg score {round(sum(sc)/len(sc)) if sc else '-'}; looks for {(p.get('brief') or {}).get('ideas') or 'nothing set'}")
+            allc += [(x, c) for x in pj for c in (x.get("clips") or [])]
+        ctx.append("TOP CLIPS ACROSS ALL PROJECTS:")
+        for x, c in sorted(allc, key=lambda t: -(t[1].get("score") or 0))[:8]: ctx.append(_clip_line(c) + f"   [from \"{(x.get('title') or '')[:40]}\"]")
+        ctx = "\n".join(ctx); topic = insights._topic((ps[0].get("name") if ps else "") or "")
     else:
         pr = projects.get(sid); br = pr.get("brief") or {}; df = pr.get("defaults") or {}
         js = [x for x in jobs.list_jobs() if x.get("project") == sid]

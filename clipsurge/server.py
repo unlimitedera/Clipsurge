@@ -589,7 +589,7 @@ class ChatIn(BaseModel):
 @app.post("/api/chat")
 def chat(b: ChatIn):
     """Ask the connected AI model about a project or video. Streams plain text."""
-    if b.scope not in ("project", "video"): raise HTTPException(400, "unknown scope")
+    if b.scope not in ("project", "video", "general"): raise HTTPException(400, "unknown scope")
     try: system = assist.build(b.scope, b.id, b.clip)
     except Exception as e: raise HTTPException(404, "Could not read that project or video")
     msgs = [{"role": "system", "content": system}]

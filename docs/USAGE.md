@@ -219,7 +219,7 @@ Nothing can promise a video goes viral. Clipsurge only suggests tags that fit th
 
 ## 18. SurgeAI
 
-On any project page and any video page there is a **SurgeAI** button at the bottom left. It opens a chat panel with SurgeAI, a little animated bot who talks to the model you connected in Settings > AI and agents (LM Studio, Ollama, or the model Clipsurge runs for you).
+On every screen there is a **SurgeAI** button at the bottom left. On a project or video page he knows that project or video; everywhere else (Projects, Overview, Transfers, Settings) he sees all your projects, clips and uploads, so you can plan, ask for tag ideas or ask how Clipsurge works. It opens a chat panel with SurgeAI, a little animated bot who talks to the model you connected in Settings > AI and agents (LM Studio, Ollama, or the model Clipsurge runs for you).
 
 - When nobody is talking to him, SurgeAI does his own thing: he draws, eats a cookie, scrolls his phone, reads a book, drinks coffee, listens to music with headphones, or takes a nap. He picks one at random, and every move blends smoothly into the next. If you set your system to reduce motion, he stays still.
 - SurgeAI reacts while you chat: it waves hello, leans in while you type, thinks (with a thought bubble) while the model works, talks while the answer streams in, then celebrates. If the model cannot be reached, it looks sad.
