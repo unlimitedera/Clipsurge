@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2026 unlimitedera. All Rights Reserved.
+# Copyright (c) 2026 unlimitedera. All Rights Reserved.
 # Removes Clipsurge. Your videos and clips live in the data folder: you are asked before it is deleted.
 param([string]$Dir = (Join-Path $env:LOCALAPPDATA "Clipsurge"))
 if (-not (Test-Path $Dir)) { Write-Host "Nothing to remove at $Dir"; exit 0 }

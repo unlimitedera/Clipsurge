@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2026 unlimitedera. All Rights Reserved.
+# Copyright (c) 2026 unlimitedera. All Rights Reserved.
 # Clipsurge installer for Windows 10/11.
 #   irm https://raw.githubusercontent.com/unlimitedera/Clipsurge/main/install.ps1 | iex
 # With options:
