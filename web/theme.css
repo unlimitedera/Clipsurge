@@ -574,3 +574,5 @@ ol.guide{margin:10px 0;padding-left:20px;display:grid;gap:7px}ol.guide code{padd
 
 .sname{font:800 13px var(--f-display);letter-spacing:.1em;text-transform:none;color:#fff}.sname b{color:var(--lime);font-weight:800}.sname.big{font-size:15px;display:block}
 #askfab .sname{font-size:14px;color:#fff}[data-theme=light] #askfab .sname{color:#0d1117}[data-theme=light] .sname{color:#0d1117}[data-theme=light] .sname b{color:#5a8a00}
+
+.sname{text-transform:uppercase;letter-spacing:.16em;font-weight:700}.sname b{font-weight:700}#askfab .sname{font-size:13px}.sname.big{font-size:15px}
