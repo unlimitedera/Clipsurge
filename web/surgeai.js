@@ -9,6 +9,7 @@
  const defs=document.createElement("div");defs.style.cssText="position:absolute;width:0;height:0;overflow:hidden";
  defs.innerHTML=`<svg width="0" height="0" aria-hidden="true"><defs>
   <linearGradient id="sai-body" x1="0" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#e4ff7a"/><stop offset="0.55" stop-color="#c6ff3d"/><stop offset="1" stop-color="#a5e01f"/></linearGradient>
+  <linearGradient id="sai-iris" x1="0" y1="0" x2="0" y2="1"><stop offset=".25" stop-color="#0d1117"/><stop offset="1" stop-color="#6b7684"/></linearGradient>
   <linearGradient id="sai-fold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7da514"/><stop offset="1" stop-color="#3f5a08"/></linearGradient>
   <radialGradient id="sai-glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#c6ff3d" stop-opacity=".45"/><stop offset="1" stop-color="#c6ff3d" stop-opacity="0"/></radialGradient>
   <clipPath id="sai-scr"><rect x="54.2" y="74" width="11.6" height="20" rx="1.6"/></clipPath>
@@ -16,6 +17,14 @@
  document.body.appendChild(defs);
 
  /* ------------------------------------------------------------ markup */
+ /* a big anime-style eye: white, a dark iris that fades to grey at the bottom, a glossy highlight and a thick upper lash */
+ const eye=(n,cx,sg)=>`<g data-k="e${n}"><g transform="translate(${cx} 40)">
+   <ellipse rx="6.9" ry="8" fill="#fbfff0" stroke="#7da514" stroke-opacity=".35" stroke-width=".6"/>
+   <g data-k="i${n}"><ellipse rx="5.1" ry="6.3" cy=".6" fill="url(#sai-iris)"/><ellipse rx="3" ry="3.9" cy="-.2" fill="${INK}"/>
+    <ellipse cx="${-1.7*sg}" cy="-2.6" rx="2.1" ry="2.5" fill="#fff"/><circle cx="${2*sg}" cy="2.6" r="1" fill="#fff" opacity=".85"/></g>
+   <path d="M${-7.8*sg} -2.2 Q${-6.2*sg} -9.8 ${0.4*sg} -9.2 Q${6.6*sg} -8.6 ${7.8*sg} -2.6" fill="none" stroke="${INK}" stroke-width="2.6" stroke-linecap="round"/>
+   <path d="M${6.4*sg} -7.2 L${9.2*sg} -9.4" stroke="${INK}" stroke-width="1.8" stroke-linecap="round"/>
+  </g></g>`;
  window.surgeBot=function(size,state){
   size=size||64;
   const bars=[0,1,2,3,4].map(i=>`<rect x="55.4" y="${75+i*8}" width="${6+(i*5)%5}" height="2.2" rx="1" fill="${["#c6ff3d","#7fd4ff","#ff9ec0","#ffd166","#c6ff3d"][i]}"/><rect x="55.4" y="${78.4+i*8}" width="9" height="1.6" rx=".8" fill="#5a6572"/>`).join("");
@@ -32,7 +41,7 @@
     <path d="M69 94 L98 65" stroke="#fff" stroke-opacity=".5" stroke-width="1.6" stroke-linecap="round"/>
     <g data-k="blush" opacity="0"><ellipse cx="34" cy="62" rx="6" ry="3.4" fill="#ff7b7b" opacity=".5"/><ellipse cx="86" cy="62" rx="6" ry="3.4" fill="#ff7b7b" opacity=".5"/></g>
     <g data-k="look">
-     <g data-k="eN"><ellipse data-k="eL" cx="41.5" cy="39.5" rx="5.2" ry="5.6" fill="${INK}"/><ellipse data-k="eR" cx="78.5" cy="39.5" rx="5.2" ry="5.6" fill="${INK}"/></g>
+     <g data-k="eN">${eye("L",41.5,-1)}${eye("R",78.5,1)}</g>
      <g data-k="eH" opacity="0"><path d="M33 42 Q41 33 50 42" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/><path d="M70 42 Q79 33 87 42" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/></g>
      <g data-k="eS" opacity="0"><path d="M33 42 L50 36" stroke="${INK}" stroke-width="4.2" stroke-linecap="round"/><path d="M87 42 L70 36" stroke="${INK}" stroke-width="4.2" stroke-linecap="round"/></g>
      <g data-k="eC" opacity="0"><path d="M33 41 Q41 44.5 50 41" fill="none" stroke="${INK}" stroke-width="3.6" stroke-linecap="round"/><path d="M70 41 Q79 44.5 87 41" fill="none" stroke="${INK}" stroke-width="3.6" stroke-linecap="round"/></g>
@@ -109,7 +118,7 @@
  }
  function state(i,tg,S,s,w){
   if(S==="wave"){tg.eN=0;tg.eH=1;tg.mL=0;tg.mD=1;tg.blush=1;tg.hRx=108+4*Math.sin(s*11);tg.hRy=30+3*Math.sin(s*11+1.2);tg.rot=-2;tg.y-=1}
-  else if(S==="listening"){tg.rot=-4+Math.sin(w*2)*.6;tg.eyeSX=1.12;tg.eyeSY=1.5;tg.lookX=0;tg.open=.25;tg.hLx=11;tg.hLy=44+2*Math.sin(w*2);tg.lookY=0}
+  else if(S==="listening"){tg.rot=-4+Math.sin(w*2)*.6;tg.eyeSX=1.1;tg.eyeSY=1.12;tg.lookX=0;tg.open=.25;tg.hLx=11;tg.hLy=44+2*Math.sin(w*2);tg.lookY=0}
   else if(S==="thinking"){tg.lookX=3.4;tg.lookY=-3;tg.rot=3.5+1.5*Math.sin(w*1.2);tg.mK=1;tg.dots=1;tg.hRx=76;tg.hRy=79+1.5*Math.sin(w*2.4);tg.hLx=58;tg.hLy=96;tg.rLegR=-9*Math.max(0,Math.sin(w*4.5))}
   else if(S==="talking"){const n=Math.abs(Math.sin(w*9.5))*(0.55+0.45*Math.abs(Math.sin(w*2.7)));tg.open=.12+.9*n;tg.y=-2.5*Math.abs(Math.sin(w*5));tg.lookX=0;tg.lookY=0;
    tg.hLx=13-4*Math.sin(w*3.1);tg.hLy=87-24*Math.max(0,Math.sin(w*3.1));tg.hRx=107+4*Math.sin(w*3.1+2);tg.hRy=87-24*Math.max(0,Math.sin(w*3.1+2));tg.lLegR=5*Math.sin(w*5);tg.rLegR=-5*Math.sin(w*5)}
@@ -136,9 +145,9 @@
     tg.pCookie=1}
    i.ckR=6.2-1.7*Math.min(3,i.bites);tg.y+=0;tg.rot=2*Math.sin(w)}
   else if(a==="scroll"){
-   tg.pPhone=fade;tg.lookY=3.2;tg.eyeSY=.58;tg.rot=4;tg.y+=1.6;tg.hLx=52.5;tg.hLy=93;
+   tg.pPhone=fade;tg.lookY=3.2;tg.eyeSY=.62;tg.rot=4;tg.y+=1.6;tg.hLx=52.5;tg.hLy=93;
    const sp=(s*1.05)%1,sw=sp<.4?ease(sp/.4):1-ease((sp-.4)/.6);tg.hRx=68;tg.hRy=92-9*sw;i.feed=-((s*17)%16);
-   tg.mL=1;tg.curv=(Math.sin(s*2.1)>.82)?6:.2;tg.eyeSX=1;if(Math.sin(s*1.3+1)>.93){tg.eyeSY=1.2}}
+   tg.mL=1;tg.curv=(Math.sin(s*2.1)>.82)?6:.2;tg.eyeSX=1;if(Math.sin(s*1.3+1)>.93){tg.eyeSY=1.1}}
   else if(a==="read"){
    tg.pBook=fade;tg.hLx=36;tg.hLy=92;tg.hRx=84;tg.hRy=90;tg.lookY=2.2;const m=(s*.8)%1;tg.lookX=-3+6*Math.min(1,m*1.25);tg.rot=1.5*Math.sin(s*.8);tg.curv=0;
    const fp=((s-1.4)%3.2)/.55;i.flip=fp>=0&&fp<=1?fp:-1}
@@ -155,7 +164,7 @@
    const yawn=ease(s/.5)*(1-ease((s-1.8)/.6)),sl=ease((s-2)/.8)*(1-ease((s-8)/.35)),wk=ease((s-8.1)/.2)*(1-ease((s-9.2)/.5));
    tg.hLx=13+15*yawn;tg.hLy=87-62*yawn;tg.hRx=107-15*yawn;tg.hRy=87-62*yawn;tg.open=yawn*1.1+sl*(.1+.05*Math.sin(s*2.2))+wk*.6;
    tg.eN=0;tg.eC=(yawn>.1||sl>.1)?1:0;tg.eN=(yawn>.1||sl>.1)?0:1;tg.sy=1+.05*yawn+.02*sl*Math.sin(s*2.2);tg.sx=1-.03*yawn;
-   tg.y=3.5*sl-9*wk;tg.rot=sl*(-6+4*Math.sin(s*.85))+0;tg.zzz=sl;tg.lookX=0;tg.lookY=0;if(wk>.05){tg.eyeSX=1.25;tg.eyeSY=1.5;tg.eN=1;tg.eC=0}}}
+   tg.y=3.5*sl-9*wk;tg.rot=sl*(-6+4*Math.sin(s*.85))+0;tg.zzz=sl;tg.lookX=0;tg.lookY=0;if(wk>.05){tg.eyeSX=1.12;tg.eyeSY=1.14;tg.eN=1;tg.eC=0}}}
 
  let last=now();
  function frame(){
@@ -183,7 +192,8 @@
   const sh=1-Math.min(.35,Math.max(-.2,-c.y/30));set(E.shadow,"transform",`translate(60 146) scale(${sh.toFixed(3)} 1) translate(-60 -146)`);set(E.shadow,"opacity",(.35*sh).toFixed(2));
   set(E.legL,"transform",`rotate(${c.lLegR.toFixed(2)} 46 94)`);set(E.legR,"transform",`rotate(${c.rLegR.toFixed(2)} 74 94)`);
   set(E.look,"transform",`translate(${c.lookX.toFixed(2)} ${c.lookY.toFixed(2)})`);
-  const es=(el,cx)=>set(el,"transform",`translate(${cx} 39.5) scale(${c.eyeSX.toFixed(3)} ${Math.max(.06,c.eyeSY).toFixed(3)}) translate(${-cx} -39.5)`);es(E.eL,41.5);es(E.eR,78.5);
+  const es=(el,cx)=>set(el,"transform",`translate(${cx} 40) scale(${c.eyeSX.toFixed(3)} ${Math.max(.06,c.eyeSY).toFixed(3)}) translate(${-cx} -40)`);es(E.eL,41.5);es(E.eR,78.5);
+  const ix=Math.max(-1.6,Math.min(1.6,c.lookX*.45)),iy=Math.max(-1.8,Math.min(1.8,c.lookY*.5));set(E.iL,"transform",`translate(${ix.toFixed(2)} ${iy.toFixed(2)})`);set(E.iR,"transform",`translate(${ix.toFixed(2)} ${iy.toFixed(2)})`);
   set(E.eN,"opacity",Math.max(0,c.eN).toFixed(2));set(E.eH,"opacity",Math.max(0,c.eH).toFixed(2));set(E.eS,"opacity",Math.max(0,c.eS).toFixed(2));set(E.eC,"opacity",Math.max(0,c.eC).toFixed(2));
   const op=Math.min(1,Math.max(0,c.open)),lineV=Math.max(0,1-op*4)*(1-c.mD)*(1-c.mK)*(i.state==="idle"&&i.act==="music"?0:1);
   set(E.mL,"d",`M${60-c.mW} 67 Q60 ${(67+c.curv).toFixed(2)} ${60+c.mW} 67`);set(E.mL,"opacity",Math.max(0,Math.min(1,1-op*4-c.mD-c.mK)).toFixed(2));
