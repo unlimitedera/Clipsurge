@@ -502,3 +502,5 @@ button.uib:hover{color:var(--lime);border-color:var(--lime);filter:none}.uit.err
 @media (max-width:1600px){.upd-pill{padding:6px 9px}.upd-pill{font-size:0}.upd-pill svg{margin:0}}
 
 .hright.cmp .g.sm{font-size:0;gap:0;padding-left:9px;padding-right:9px}.hright.cmp .g.sm svg{margin:0}
+
+.upd-pill[hidden]{display:none!important}
