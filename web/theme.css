@@ -494,3 +494,9 @@ button.uib:hover{color:var(--lime);border-color:var(--lime);filter:none}.uit.err
 @media (max-width:1100px){.upd-pill span{display:none}}
 .updlist{margin:10px 0;padding:0;list-style:none;max-height:240px;overflow:auto;display:grid;gap:6px}.updlist li{padding:7px 10px;border:1px solid var(--line,rgba(255,255,255,.1));border-radius:6px}
 .updbar{height:6px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;margin:12px 0 6px}.updbar i{display:block;height:100%;width:0;background:var(--acc,#c6ff3d);transition:width .6s}
+
+.upd-pill{white-space:nowrap;line-height:1.1;flex:none}
+
+.upd-pill{padding:6px 11px;margin-right:2px}
+
+@media (max-width:1600px){.upd-pill{padding:6px 9px}.upd-pill{font-size:0}.upd-pill svg{margin:0}}

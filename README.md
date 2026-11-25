@@ -44,6 +44,7 @@ Full guide, options and troubleshooting: [docs/INSTALL.md](docs/INSTALL.md)
 | **Editor** | Timing, crop, captions, sound (noise reduction, voice effects, music with ducking), look (speed, fades, colour). |
 | **Upload** | Send clips to YouTube Shorts with a live progress box. |
 | **Agents** | Control everything from Hermes, Claude Code or any MCP client. |
+| **Updates** | Tells you when a new version is on GitHub and updates itself with one click. |
 | **Private** | Videos, transcripts and clips stay on your computer. |
 
 ## Screenshots

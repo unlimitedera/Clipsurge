@@ -173,6 +173,12 @@ Settings > AI and agents:
 
 Settings > AI and agents > Agent control (MCP) shows ready to paste commands for Hermes, Claude Code and Claude Desktop. An agent can list and create projects, add videos, check progress, search moments by describing them, add clips and upload.
 
+## 16. Updates
+
+When a new version is on GitHub, an **Update** button appears in the top bar. Click it to see what changed, then **Update now**. Clipsurge downloads the new files, checks them, installs them and restarts, then the page reloads on its own. Your projects, videos, clips, settings and YouTube key are not touched. If a video is processing, wait for it to finish first.
+
+**Settings > About** shows your version and has **Check for updates** and a switch to stop the prompt. The check only asks GitHub which version is newest. Nothing about you or your videos is sent.
+
 ## Tips
 
 - Gaming videos: keep **Read on-screen text** on. It makes KILL, VICTORY and ACE moments score higher. It is slow on long videos if a model also uses your graphics card.

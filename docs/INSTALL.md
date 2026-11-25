@@ -52,7 +52,9 @@ If you saved the script as a file and PowerShell says scripts are disabled, run 
 
 ## Update
 
-Run the same command again. It replaces the program files and keeps your `data` (projects, videos, clips, settings) and `secrets` (YouTube key) folders.
+Clipsurge checks GitHub for new versions. When there is one, a lime **Update** button appears at the top of the page. Click it, read the list of changes, press **Update now**, and Clipsurge updates itself and restarts. It will not update while videos are processing. You can also use **Settings > About > Check for updates**, or turn the prompt off there.
+
+You can still update by hand: run the same command again. It replaces the program files and keeps your `data` (projects, videos, clips, settings) and `secrets` (YouTube key) folders.
 
 ## Start and stop
 
