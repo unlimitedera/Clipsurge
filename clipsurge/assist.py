@@ -73,7 +73,27 @@ def _missed(j):
         if len(picked) >= 8: break
     return clips, sorted(picked, key=lambda c: -c["score"]), segs
 
-LAST = {}        # video id -> the missed-moments list SurgeAI last showed, so "number 3" means the 3rd one on screen
+from .config import DATA
+_STATE = DATA / "chat_state.json"
+
+class _Mem(dict):
+    """Per video memory that survives restarts: the list SurgeAI last showed, the clip he last touched, a pending delete, and what he did."""
+    def _all(self):
+        try: return json.loads(_STATE.read_text("utf-8"))
+        except Exception: return {}
+    def get(self, jid, default=None): return self._all().get(jid, {}).get("list", default)
+    def __getitem__(self, jid): return self._all().get(jid, {}).get("list")
+    def __setitem__(self, jid, lst): self.put(jid, list=lst)
+    def put(self, jid, **kw):
+        d = self._all(); d.setdefault(jid, {}).update(kw)
+        try: _STATE.write_text(json.dumps(d, indent=1), "utf-8")
+        except Exception: pass
+    def st(self, jid): return self._all().get(jid, {})
+    def log(self, jid, line):
+        d = self._all(); a = d.setdefault(jid, {}).setdefault("actions", []); a.append(line); d[jid]["actions"] = a[-12:]
+        try: _STATE.write_text(json.dumps(d, indent=1), "utf-8")
+        except Exception: pass
+LAST = _Mem()
 
 def missed_answer(j):
     """A plain, always-correct answer to 'did I miss moments?', written from the data (no model needed)."""
@@ -198,6 +218,81 @@ def _auto_title(txt):
 
 def _clean_show(x): return x
 
+RENAME_ID = _re.compile(r"\b(?:rename|re-?title|retitle|call|title|name|change the (?:title|name) of|set the (?:title|name) of)\b.*?\bclip\s*(?:number|no\.?|id)?\s*#?(\d{1,3})\b\s*(?:to|as|into|:|-|=)?\s*(.+)$", _re.I)
+RENAME_IT = _re.compile(r"\b(?:rename|re-?title|retitle|call|name)\b.*?\b(?:it|that(?: clip| one)?|this(?: clip| one)?|the last (?:clip|one)|the new (?:clip|one))\b.*?\b(?:to|as|into)\b\s*(.+)$", _re.I)
+DELETE_ID = _re.compile(r"\b(?:delete|remove|get rid of|trash|scrap)\b.*?\bclip\s*(?:number|no\.?|id)?\s*#?(\d{1,3})\b", _re.I)
+DELETE_IT = _re.compile(r"\b(?:delete|remove|get rid of|undo|trash|scrap)\b.*?\b(?:it|that(?: clip| one)?|this(?: clip| one)?|the last (?:clip|one)|the new (?:clip|one))\b", _re.I)
+YES = _re.compile(r"^\W*(yes|yeah|yep|yup|sure|ok|okay|do it|confirm|go ahead|delete it|please do)\W*$", _re.I)
+NO = _re.compile(r"^\W*(no|nope|nah|cancel|stop|never ?mind|don'?t|keep it)\W*$", _re.I)
+
+def _clean_title(x):
+    x = (x or "").strip().strip("\"'\u201c\u201d\u2018\u2019`").strip()
+    x = _re.sub(r"\s+", " ", x).rstrip(".")
+    return x[:95]
+
+def _clip_of(jid, cid):
+    try: j = jobs.load(jid)
+    except Exception: return None, None
+    return j, next((c for c in j["clips"] if c["id"] == cid), None)
+
+def existing_command(j, text):
+    """Rename or delete a clip that already exists, by id ('clip 19') or by pronoun ('it', 'that clip'). Returns a reply or None."""
+    jid = j["id"]; st = LAST.st(jid); s = (text or "").strip()
+    pend = st.get("pending")
+    if pend:
+        if YES.match(s):
+            LAST.put(jid, pending=None)
+            return _delete_clip(jid, pend["cid"])
+        if NO.match(s):
+            LAST.put(jid, pending=None); return f"Okay, I kept clip #{pend['cid']}."
+    if HOWQ.search(s): return None
+    ref = _re.search(r"\b(?:talking about|meant|mean|i said|i meant|we (?:created|made|added)|you (?:created|made|added)|already|existing|that)\b.*?\bclip\s*(?:number|no\.?|id)?\s*#?(\d{1,3})\b", s, _re.I)
+    if ref and not RENAME_ID.search(s) and not DELETE_ID.search(s):
+        _, c = _clip_of(jid, int(ref.group(1)))
+        if c:
+            LAST.put(jid, last=c["id"])
+            return f"Got it, clip **#{c['id']}** (\"{(c.get('title') or '')[:60]}\", {_mmss(c['start'])} to {_mmss(c['end'])}). What should I do with it? You can say **rename it to ...** or **delete it**."
+    m = RENAME_ID.search(s)
+    if m and not _re.search(r"\b(which|what)\b.*\?$", s):
+        return _rename_clip(jid, int(m.group(1)), m.group(2))
+    m = RENAME_IT.search(s)
+    if m:
+        cid = st.get("last")
+        if not cid: return "Which clip? Tell me the number, for example **rename clip 19 to My new title**."
+        return _rename_clip(jid, cid, m.group(1))
+    m = DELETE_ID.search(s)
+    cid = int(m.group(1)) if m else (st.get("last") if DELETE_IT.search(s) else None)
+    if DELETE_IT.search(s) and not m and not cid: return "Which clip? Tell me the number, for example **delete clip 19**."
+    if cid is not None:
+        _, c = _clip_of(jid, cid)
+        if not c: return f"There is no clip #{cid} in this video. The clips here are: {', '.join('#' + str(x['id']) for x in jobs.load(jid)['clips']) or 'none'}."
+        LAST.put(jid, pending={"cid": cid})
+        return f"Delete clip **#{cid}** (\"{(c.get('title') or '')[:60]}\", {_mmss(c['start'])} to {_mmss(c['end'])})? This removes its file too. Say **yes** to confirm or **no** to keep it."
+    return None
+
+def _rename_clip(jid, cid, new):
+    new = _clean_title(new)
+    if not new: return "What should the new title be? For example: **rename clip 19 to My new title**."
+    j, c = _clip_of(jid, cid)
+    if not c: return f"There is no clip #{cid} in this video. The clips here are: {', '.join('#' + str(x['id']) for x in j['clips']) or 'none'}."
+    old = c.get("title") or ""
+    def f(jj):
+        for x in jj["clips"]:
+            if x["id"] == cid: x["title"] = new
+    jobs.update(jid, f); LAST.put(jid, last=cid); LAST.log(jid, f"renamed clip #{cid} from \"{old[:40]}\" to \"{new[:40]}\"")
+    return f"Done. Clip **#{cid}** is now called \"{new}\" (it was \"{old[:60]}\"). The new title is used for narration, uploads and the clip list; the video itself is not re-rendered."
+
+def _delete_clip(jid, cid):
+    try:
+        from . import server
+        _, c = _clip_of(jid, cid); title = (c or {}).get("title") or ""
+        server.delete_clip(jid, cid)
+    except Exception as e:
+        return f"I could not delete it: {getattr(e, 'detail', None) or e}"
+    LAST.log(jid, f"deleted clip #{cid} (\"{title[:40]}\")"); st = LAST.st(jid)
+    if st.get("last") == cid: LAST.put(jid, last=None)
+    return f"Deleted clip #{cid} (\"{title[:60]}\")."
+
 def do_clip(j, cmd):
     """Make the clips the user asked for. Returns the reply text."""
     jid = j["id"]
@@ -225,12 +320,19 @@ def do_clip(j, cmd):
         todo.append((a, b, txt))
     else:
         lst = LAST.get(jid)
+        if cmd.get("nums") and not lst:
+            c = _clip_of(jid, cmd["nums"][0])[1]
+            if c: return f"Clip **#{c['id']}** already exists (\"{(c.get('title') or '')[:60]}\"). Say **rename clip {c['id']} to ...** or **delete clip {c['id']}**, or ask me **which moments did I miss** for new ones."
         if not lst:
             m = _missed(j)
             if not m or not m[1]: return "I have no list of moments to pick from yet. Ask me **which moments did I miss** first, or give me times like **clip 28:01 to 28:38**."
             lst = LAST[jid] = [{"s": c["s"], "e": c["e"], "txt": c["txt"]} for c in m[1]]
             note = "(I used my current list of unclipped moments.) "
         bad = [n for n in cmd["nums"] if n < 1 or n > len(lst)]
+        if bad and _clip_of(jid, bad[0])[1]:
+            c = _clip_of(jid, bad[0])[1]
+            return (f"Clip **#{bad[0]}** already exists (\"{(c.get('title') or '')[:60]}\"). My list of missed moments has {len(lst)} item{'s' if len(lst) != 1 else ''}. "
+                    f"If you want to change clip #{bad[0]}, say **rename clip {bad[0]} to ...** or **delete clip {bad[0]}**.")
         if bad: return f"My list only has {len(lst)} moment{'s' if len(lst) != 1 else ''}, so number {bad[0]} does not exist. Ask me **which moments did I miss** to see it again."
         for n in cmd["nums"]: todo.append((lst[n - 1]["s"], lst[n - 1]["e"], lst[n - 1]["txt"]))
     ids = []
@@ -242,6 +344,8 @@ def do_clip(j, cmd):
                                 "tags": [], "text": txt, "approved": True, "status": "queued", "idea": "added by SurgeAI"})
     jobs.update(jid, f)
     jobs.rerender(jid, ids)
+    LAST.put(jid, last=ids[-1])
+    for cid_, (a_, b_, *_x) in zip(ids, todo): LAST.log(jid, f"added clip #{cid_} ({_mmss(a_)} to {_mmss(b_)})")
     lines = [f"{note}Done! I added {'this clip' if len(ids) == 1 else str(len(ids)) + ' clips'} and started rendering:", ""]
     for cid, (a, b, txt, *tt) in zip(ids, todo):
         lines.append(f"- **clip #{cid}**: {_mmss(a)} to {_mmss(b)}, \"{_auto_title(tt[0] if tt and tt[0] else txt) if txt else 'Custom clip'}\"")
@@ -256,6 +360,12 @@ def answer(scope, sid, focus, messages):
     if scope == "video":
         try: j = jobs.load(sid)
         except Exception: j = None
+    if j is not None:
+        try: j = jobs.load(sid)
+        except Exception: pass
+        try: er = existing_command(j, last)
+        except Exception as e: er = f"I could not do that ({type(e).__name__}: {str(e)[:100]})."
+        if er: yield er; return
     if j is not None and PHRASEQ.search(last) and not _re.search(r"\b(clip|make|cut|add|grab)\b", last, _re.I):
         ph = phrase_of(last)
         if ph:
@@ -321,6 +431,8 @@ def _video_ctx(j, focus=None):
     s.append(f"CLIPS ({len(clips)}), best first:")
     for c in sorted(clips, key=lambda c: -(c.get("score") or 0)):
         s.append(_clip_line(c, full=(focus is not None and str(c["id"]) == str(focus))))
+    st = LAST.st(j["id"])
+    if st.get("actions"): s.append("WHAT SURGEAI ALREADY DID IN THIS CHAT (oldest first): " + "; ".join(st["actions"]))
     try: s.append(_transcript_and_missed(j))
     except Exception as e: s.append(f"(Could not read the transcript: {type(e).__name__})")
     return "\n".join(s)
@@ -331,6 +443,7 @@ SYSTEM = ("You are SurgeAI, the friendly assistant inside Clipsurge, a tool that
           "to raise a score, a clip needs a strong first line, a clear payoff, emotion, fitting the creator's goals and a length near their best clips. "
           "Be concrete and short: bullet points, ready to copy titles and #hashtags. Only suggest tags that really describe the video: misleading tags are spam and break "
           "platform rules. You cannot promise a video will go viral, so say so if asked. The briefing contains the real transcript with times, the loudness of each moment and a list of moments not clipped yet: use it to answer questions about missed moments, give times (m:ss) and quote the words. Never say you lack access to the video or stream: you have the data in the briefing. If the data is thin, say what is missing. "
+          "You can also DO things for the creator on a video page: clip a moment from your list (\"clip number 3\"), clip by what is said (\"clip the part where he says ...\"), clip by times, rename a clip (\"rename clip 5 to ...\") and delete a clip (\"delete clip 5\", with confirmation). If asked whether you can, say yes and show the exact words to use. Never say you cannot edit or clip videos. "
           "Reply in the language the user writes in.")
 
 def build(scope, sid, focus=None):

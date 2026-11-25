@@ -24,7 +24,7 @@
    if(m=raw.match(/^#{1,4}\s+(.*)$/)){out.push(`<h5>${m[1]}</h5>`);continue}
    out.push(raw.trim()?`<p>${raw}</p>`:"")}
   if(list)out.push(`</${list}>`);
-  return out.join("").replace(/(^|[\s>(])(#[\p{L}\p{N}_]{2,30})/gu,'$1<button class="hashc" data-tag="$2">$2</button>')}
+  return out.join("").replace(/(^|[\s>(])(#[\p{L}_][\p{L}\p{N}_]{1,29})/gu,'$1<button class="hashc" data-tag="$2">$2</button>')}
  const SUGG={general:["What should I clip next across my projects?","Which of my videos are doing best, and why?","Give me trending tags for my topic","Help me plan this week's uploads"],video:["Give me 5 better titles for my top clip","Which tags should I use for this video?","How can I raise the scores of the low clips?","Which moments did I probably miss?"],
              project:["What kind of clips should I look for next?","Give me ideas for the next 5 clips","How do I improve my average score?","Write a better description of what to look for"]};
  function open(){
