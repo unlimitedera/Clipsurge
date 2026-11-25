@@ -32,7 +32,7 @@
     <path d="M69 94 L98 65" stroke="#fff" stroke-opacity=".5" stroke-width="1.6" stroke-linecap="round"/>
     <g data-k="blush" opacity="0"><ellipse cx="34" cy="62" rx="6" ry="3.4" fill="#ff7b7b" opacity=".5"/><ellipse cx="86" cy="62" rx="6" ry="3.4" fill="#ff7b7b" opacity=".5"/></g>
     <g data-k="look">
-     <g data-k="eN"><rect data-k="eL" x="33" y="36" width="17" height="7" rx="3.5" fill="${INK}"/><rect data-k="eR" x="70" y="36" width="17" height="7" rx="3.5" fill="${INK}"/></g>
+     <g data-k="eN"><ellipse data-k="eL" cx="41.5" cy="39.5" rx="5.2" ry="5.6" fill="${INK}"/><ellipse data-k="eR" cx="78.5" cy="39.5" rx="5.2" ry="5.6" fill="${INK}"/></g>
      <g data-k="eH" opacity="0"><path d="M33 42 Q41 33 50 42" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/><path d="M70 42 Q79 33 87 42" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/></g>
      <g data-k="eS" opacity="0"><path d="M33 42 L50 36" stroke="${INK}" stroke-width="4.2" stroke-linecap="round"/><path d="M87 42 L70 36" stroke="${INK}" stroke-width="4.2" stroke-linecap="round"/></g>
      <g data-k="eC" opacity="0"><path d="M33 41 Q41 44.5 50 41" fill="none" stroke="${INK}" stroke-width="3.6" stroke-linecap="round"/><path d="M70 41 Q79 44.5 87 41" fill="none" stroke="${INK}" stroke-width="3.6" stroke-linecap="round"/></g>
