@@ -29,6 +29,26 @@ irm unlimitedera.github.io/clipsurge | iex
 
 It installs Python 3.11 and ffmpeg if you do not have them, sets everything up in `%LOCALAPPDATA%\Clipsurge`, adds a Desktop shortcut, and opens Clipsurge in your browser at `http://127.0.0.1:8420`. Run the same command again any time to update. Your projects, videos and keys are kept.
 
+**Download size:** about **0.9 GB** on a PC without an NVIDIA card, about **2.2 GB** with one (it adds the GPU libraries). That includes the speech model, which downloads the first time you use it. Details below and in [docs/INSTALL.md](docs/INSTALL.md#download-size).
+
+### Download size
+
+Measured on Windows, November 2026. Most of it is one time.
+
+| Part | Download | On disk | When |
+|---|---|---|---|
+| Clipsurge itself | 2 MB | 5 MB | always |
+| Python packages (video, speech, vision) | 200 MB | 720 MB | always |
+| Python 3.11 | 26 MB | 100 MB | only if you do not have it |
+| ffmpeg (portable copy) | 206 MB | 600 MB | only if you do not have it |
+| NVIDIA GPU libraries | 1.3 GB | 2.0 GB | only if an NVIDIA graphics card is found (makes speech to text much faster) |
+| Speech model, downloaded the first time you use it | 0.5 GB | 0.5 GB | *small*, the default |
+| Bigger speech model | 3.1 GB | 3.1 GB | *large-v3*, used automatically for Arabic and other non-Latin languages |
+
+**Typical totals:** about **0.9 GB** to download on a PC without an NVIDIA card, about **2.2 GB** with one. Allow **2 GB** free (no NVIDIA card) or **5 GB** (NVIDIA card plus the big speech model), plus room for your videos and clips.
+
+The disk sizes for Python 3.11 and ffmpeg are estimates; the other figures were measured. Local AI models are optional and separate (a small one is about 0.4 GB).
+
 Full guide, options and troubleshooting: [docs/INSTALL.md](docs/INSTALL.md)
 
 ## What it does
@@ -79,7 +99,7 @@ The step by step tutorials are in [docs/USAGE.md](docs/USAGE.md).
 ## Requirements
 
 - Windows 10 or 11 (64 bit)
-- About 6 GB of free disk space for the install, plus space for your videos
+- 2 GB of free disk space for the install (5 GB with an NVIDIA card and the big speech model), plus space for your videos
 - 8 GB RAM or more. A graphics card from NVIDIA makes speech to text several times faster, but it is not required.
 - An internet connection to install, to download videos from links, and for narration voices
 
