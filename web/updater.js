@@ -34,7 +34,7 @@
   x.onclick=()=>m.close();
   go.onclick=async()=>{
    go.disabled=true;x.disabled=true;bar.hidden=false;st.hidden=false;st.textContent="Starting";
-   try{await jget("/api/update/apply",{method:"POST"})}catch(e){st.textContent=(e.message||"Update failed");go.disabled=false;x.disabled=false;bar.hidden=true;return}
+   try{const r=await fetch("/api/update/apply",{method:"POST"});if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||r.status)}catch(e){st.textContent=(e.message||"Update failed");go.disabled=false;x.disabled=false;bar.hidden=true;return}
    let seenRestart=false;
    const tick=async()=>{
     try{const s=await jget("/api/update/status");
