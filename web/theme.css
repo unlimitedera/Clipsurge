@@ -574,10 +574,10 @@ ol.guide{margin:10px 0;padding-left:20px;display:grid;gap:7px}ol.guide code{padd
 .sai .s-look{animation:sai-look 8s ease-in-out infinite}
 @keyframes sai-look{0%,18%,100%{transform:translate(0,0)}26%,44%{transform:translate(2.6px,-.6px)}52%,70%{transform:translate(-2.6px,.4px)}78%{transform:translate(0,0)}}
 .sai .s-arm{transform-origin:50% 50%}
-.sai .s-arm.l{transform-origin:100% 100%;animation:sai-al 3.4s ease-in-out infinite}
-.sai .s-arm.r{transform-origin:0% 100%;animation:sai-ar 3.4s ease-in-out infinite}
-@keyframes sai-al{0%,100%{transform:rotate(0)}50%{transform:rotate(-7deg)}}
-@keyframes sai-ar{0%,100%{transform:rotate(0)}50%{transform:rotate(7deg)}}
+.sai .s-arm.l{transform-origin:100% 0%;animation:sai-al 3.4s ease-in-out infinite}
+.sai .s-arm.r{transform-origin:0% 0%;animation:sai-ar 3.4s ease-in-out infinite}
+@keyframes sai-al{0%,100%{transform:rotate(0)}50%{transform:rotate(5deg)}}
+@keyframes sai-ar{0%,100%{transform:rotate(0)}50%{transform:rotate(-5deg)}}
 .sai .s-leg{transform-origin:50% 0%}
 .sai .s-leg.l{animation:sai-ll 3.4s ease-in-out infinite}.sai .s-leg.r{animation:sai-lr 3.4s ease-in-out infinite}
 @keyframes sai-ll{0%,100%{transform:rotate(0)}50%{transform:rotate(2deg)}}@keyframes sai-lr{0%,100%{transform:rotate(0)}50%{transform:rotate(-2deg)}}
@@ -600,9 +600,9 @@ ol.guide{margin:10px 0;padding-left:20px;display:grid;gap:7px}ol.guide code{padd
 .sai[data-s=thinking] .s-dots circle{animation:sai-dot 1.2s ease-in-out infinite;transform-origin:50% 50%}
 .sai[data-s=thinking] .s-dots circle:nth-child(2){animation-delay:.2s}.sai[data-s=thinking] .s-dots circle:nth-child(3){animation-delay:.4s}
 @keyframes sai-dot{0%,100%{transform:scale(.55);opacity:.45}50%{transform:scale(1.1);opacity:1}}
-.sai[data-s=thinking] .s-arm.r{animation:sai-chin 1.6s ease-in-out infinite;transform-origin:0% 100%}
-@keyframes sai-chin{0%,100%{transform:rotate(-38deg) translateY(0)}50%{transform:rotate(-46deg) translateY(1px)}}
-.sai[data-s=thinking] .s-arm.l{animation:none;transform:rotate(14deg)}
+.sai[data-s=thinking] .s-arm.r{animation:sai-chin 1.6s ease-in-out infinite;transform-origin:0% 0%}
+@keyframes sai-chin{0%,100%{transform:rotate(-128deg)}50%{transform:rotate(-138deg)}}
+.sai[data-s=thinking] .s-arm.l{animation:none;transform:rotate(-4deg)}
 .sai[data-s=thinking] .s-leg.r{animation:sai-tap .7s ease-in-out infinite}
 @keyframes sai-tap{0%,100%{transform:rotate(0)}50%{transform:rotate(-9deg)}}
 /* talking: mouth moves, nods, gestures, taps */
@@ -617,7 +617,7 @@ ol.guide{margin:10px 0;padding-left:20px;display:grid;gap:7px}ol.guide code{padd
 @keyframes sai-m1{0%{opacity:1}22%{opacity:0}55%{opacity:1}72%{opacity:0}}
 @keyframes sai-m2{0%{opacity:0}22%{opacity:1}55%{opacity:0}72%{opacity:1}85%{opacity:0}}
 .sai[data-s=talking] .s-arm.l{animation:sai-gl2 1.1s ease-in-out infinite}.sai[data-s=talking] .s-arm.r{animation:sai-gr2 1.1s ease-in-out infinite .35s}
-@keyframes sai-gl2{0%,100%{transform:rotate(0)}50%{transform:rotate(-24deg)}}@keyframes sai-gr2{0%,100%{transform:rotate(0)}50%{transform:rotate(24deg)}}
+@keyframes sai-gl2{0%,100%{transform:rotate(0)}50%{transform:rotate(34deg)}}@keyframes sai-gr2{0%,100%{transform:rotate(0)}50%{transform:rotate(-34deg)}}
 .sai[data-s=talking] .s-leg.l{animation:sai-tapl .62s ease-in-out infinite}.sai[data-s=talking] .s-leg.r{animation:sai-tapr .62s ease-in-out infinite}
 @keyframes sai-tapl{0%,100%{transform:rotate(0)}50%{transform:rotate(5deg)}}@keyframes sai-tapr{0%,100%{transform:rotate(0)}50%{transform:rotate(-5deg)}}
 /* happy: smile, closed happy eyes, hop, arms up, sparkles */
@@ -627,15 +627,15 @@ ol.guide{margin:10px 0;padding-left:20px;display:grid;gap:7px}ol.guide code{padd
 .sai[data-s=happy] .m.closed{opacity:0}.sai[data-s=happy] .m.smile{opacity:1}
 .sai[data-s=happy] .s-blush{opacity:1}.sai[data-s=happy] .s-spark{opacity:1;animation:sai-spk .9s ease-out 2}
 @keyframes sai-spk{0%{transform:scale(.3) rotate(0);opacity:0}50%{opacity:1}100%{transform:scale(1.15) rotate(40deg);opacity:.2}}
-.sai[data-s=happy] .s-arm.l{animation:none;transform:rotate(-38deg)}.sai[data-s=happy] .s-arm.r{animation:none;transform:rotate(38deg)}
+.sai[data-s=happy] .s-arm.l{animation:none;transform:rotate(55deg)}.sai[data-s=happy] .s-arm.r{animation:none;transform:rotate(-55deg)}
 /* wave: hello */
-.sai[data-s=wave] .s-arm.r{animation:sai-wave .5s ease-in-out 4;transform-origin:0% 100%}
-@keyframes sai-wave{0%,100%{transform:rotate(-14deg)}50%{transform:rotate(-38deg)}}
+.sai[data-s=wave] .s-arm.r{animation:sai-wave .5s ease-in-out 4;transform-origin:0% 0%}
+@keyframes sai-wave{0%,100%{transform:rotate(-110deg)}50%{transform:rotate(-140deg)}}
 .sai[data-s=wave] .s-eyes{opacity:0}.sai[data-s=wave] .s-eyes-happy{opacity:1}.sai[data-s=wave] .m.closed{opacity:0}.sai[data-s=wave] .m.smile{opacity:1}.sai[data-s=wave] .s-blush{opacity:1}
 /* sad / error */
 .sai[data-s=sad] .s-bot{animation:none;transform:translateY(3px)}
 .sai[data-s=sad] .s-eyes{opacity:0}.sai[data-s=sad] .s-eyes-sad{opacity:1}.sai[data-s=sad] .m.closed{opacity:0}.sai[data-s=sad] .m.sad{opacity:1}
-.sai[data-s=sad] .s-arm.l{animation:none;transform:rotate(30deg)}.sai[data-s=sad] .s-arm.r{animation:none;transform:rotate(-30deg)}
+.sai[data-s=sad] .s-arm.l{animation:none;transform:rotate(-8deg)}.sai[data-s=sad] .s-arm.r{animation:none;transform:rotate(8deg)}
 .sai[data-s=sad] .s-head{animation:none;transform:rotate(-2deg)}
 @media (prefers-reduced-motion:reduce){.sai *{animation:none!important}}
 /* SurgeAI button and panel */

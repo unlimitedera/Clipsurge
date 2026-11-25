@@ -17,8 +17,8 @@
   <g class="s-bot">
    <g class="s-leg l"><line x1="46" y1="94" x2="43" y2="128" stroke="url(#sai-limb)" stroke-width="5.5" stroke-linecap="round"/><rect x="35" y="126" width="16" height="8" rx="4" fill="${INK}" stroke="#c6ff3d" stroke-width="1.6"/></g>
    <g class="s-leg r"><line x1="74" y1="94" x2="77" y2="128" stroke="url(#sai-limb)" stroke-width="5.5" stroke-linecap="round"/><rect x="69" y="126" width="16" height="8" rx="4" fill="${INK}" stroke="#c6ff3d" stroke-width="1.6"/></g>
-   <g class="s-arm l"><line x1="22" y1="62" x2="6" y2="47" stroke="url(#sai-limb)" stroke-width="5" stroke-linecap="round"/><circle cx="5" cy="46" r="4.6" fill="#f4ffc4" stroke="#a5e01f" stroke-width="1.4"/></g>
-   <g class="s-arm r"><line x1="98" y1="62" x2="114" y2="47" stroke="url(#sai-limb)" stroke-width="5" stroke-linecap="round"/><circle cx="115" cy="46" r="4.6" fill="#f4ffc4" stroke="#a5e01f" stroke-width="1.4"/></g>
+   <g class="s-arm l"><line x1="22" y1="60" x2="12" y2="86" stroke="url(#sai-limb)" stroke-width="5" stroke-linecap="round"/><circle cx="11.5" cy="87.5" r="4.6" fill="#f4ffc4" stroke="#a5e01f" stroke-width="1.4"/></g>
+   <g class="s-arm r"><line x1="98" y1="60" x2="108" y2="86" stroke="url(#sai-limb)" stroke-width="5" stroke-linecap="round"/><circle cx="108.5" cy="87.5" r="4.6" fill="#f4ffc4" stroke="#a5e01f" stroke-width="1.4"/></g>
    <g class="s-head">
     <path d="M98 65 L69 94 L98 94 Z" fill="url(#sai-fold)" stroke="#5d7d0e" stroke-width="2" stroke-linejoin="round"/>
     <path d="M28 18 H92 Q98 18 98 24 V65 L69 94 H28 Q22 94 22 88 V24 Q22 18 28 18 Z" fill="url(#sai-body)" stroke="#a5e01f" stroke-width="2.5" stroke-linejoin="round"/>
@@ -26,13 +26,13 @@
     <path d="M69 94 L98 65" stroke="#fff" stroke-opacity=".5" stroke-width="1.6" stroke-linecap="round"/>
     <g class="s-blush"><ellipse cx="34" cy="62" rx="6" ry="3.4" fill="#ff7b7b" opacity=".45"/><ellipse cx="86" cy="62" rx="6" ry="3.4" fill="#ff7b7b" opacity=".45"/></g>
     <g class="s-look">
-     <g class="s-eyes"><rect class="e l" x="33" y="36" width="17" height="7" rx="3.5" fill="${INK}" transform="rotate(5 41 40)"/><rect class="e r" x="70" y="36" width="17" height="7" rx="3.5" fill="${INK}" transform="rotate(-5 79 40)"/></g>
+     <g class="s-eyes"><rect class="e l" x="33" y="36" width="17" height="7" rx="3.5" fill="${INK}" transform="rotate(1.5 41 40)"/><rect class="e r" x="70" y="36" width="17" height="7" rx="3.5" fill="${INK}" transform="rotate(-1.5 79 40)"/></g>
      <g class="s-eyes-happy"><path d="M33 42 Q41 33 50 42" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/><path d="M70 42 Q79 33 87 42" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/></g>
      <g class="s-eyes-sad"><path d="M33 42 L50 36" stroke="${INK}" stroke-width="4.2" stroke-linecap="round"/><path d="M87 42 L70 36" stroke="${INK}" stroke-width="4.2" stroke-linecap="round"/></g>
     </g>
     <g class="s-mouth">
-     <path class="m closed" d="M49 66 Q60 70 71 66" fill="none" stroke="${INK}" stroke-width="3.6" stroke-linecap="round"/>
-     <ellipse class="m o1" cx="60" cy="67" rx="6" ry="3.4" fill="${INK}"/>
+     <path class="m closed" d="M50 67 Q60 68.2 70 67" fill="none" stroke="${INK}" stroke-width="3.6" stroke-linecap="round"/>
+     <ellipse class="m o1" cx="60" cy="67.5" rx="5" ry="3" fill="${INK}"/>
      <g class="m o2"><ellipse cx="60" cy="68" rx="7.5" ry="6.4" fill="${INK}"/><ellipse cx="60" cy="71.6" rx="4.4" ry="2.4" fill="#ff7b86"/></g>
      <path class="m smile" d="M47 64 Q60 79 73 64 Z" fill="${INK}" stroke="${INK}" stroke-width="2.5" stroke-linejoin="round"/>
      <path class="m think" d="M48 68 q4 -4 8 0 t8 0 t8 0" fill="none" stroke="${INK}" stroke-width="3.4" stroke-linecap="round"/>
