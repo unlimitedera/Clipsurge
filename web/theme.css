@@ -522,3 +522,5 @@ button.uib:hover{color:var(--lime);border-color:var(--lime);filter:none}.uit.err
 .perft td a,.bestt{text-decoration:none}#trTopic{background:var(--bg2,rgba(255,255,255,.04));border:1px solid var(--ln);color:var(--tx);padding:9px 12px;font:inherit}
 
 .memmeter .mdl{color:var(--lime)}.memmeter .mdl b{color:var(--lime);text-transform:none;letter-spacing:0}
+
+.memmeter .mdl b{display:inline-block;max-width:210px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}.memmeter .mdl.sh .ml{display:none}.memmeter .mdl.sh b{max-width:120px}

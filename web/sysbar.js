@@ -6,12 +6,15 @@
  const stop=document.createElement("button");stop.className="g sm";stop.id="stopb";stop.title="Stop Clipsurge";stop.innerHTML=withIco("stop","Stop",13);
  const rs=document.getElementById("restart");rs.after(stop);
  let last=null,dead=false;
- function fit(){ /* drop the model name, then meter items one by one (RAM, DISK, VRAM), until the right side clears the centred tabs */
+ function fit(){ /* make room for the tabs in steps: model name, hide the AI label, shorten the model, then drop DISK, model, VRAM (RAM last) */
   const nav=document.querySelector("header .nav");if(!nav)return;
-  hr.classList.remove("nost","nomem","cmp");const items=[...mem.children].filter(c=>c.tagName==="SPAN").sort((a,b)=>(a.classList.contains("mdl")?0:1)-(b.classList.contains("mdl")?0:1));   // the model name is dropped lastitems.forEach(c=>c.style.display="");
+  hr.classList.remove("nost","nomem","cmp");
+  const items=[...mem.children].filter(c=>c.tagName==="SPAN");items.forEach(c=>{c.style.display="";c.classList.remove("sh")});
   const over=()=>hr.getBoundingClientRect().left<nav.getBoundingClientRect().right+14;
   if(!over())return;hr.classList.add("nost");
-  for(let k=items.length-1;k>=0&&over();k--)items[k].style.display="none";
+  if(!over())return;items.forEach(c=>{if(c.classList.contains("mdl"))c.classList.add("sh")});
+  const pr=c=>c.classList.contains("mdl")?2:/^DISK/i.test(c.textContent.trim())?1:/^VRAM/i.test(c.textContent.trim())?3:4;
+  for(const c of [...items].sort((a,b)=>pr(a)-pr(b))){if(!over())return;c.style.display="none"}
   if(over())hr.classList.add("nomem");if(over())hr.classList.add("cmp")}
  window.fitHeader=fit;addEventListener("resize",fit);setTimeout(fit,300);
  const gb=n=>n==null?"-":(n>=10?Math.round(n):n.toFixed(1));
@@ -23,7 +26,7 @@
    if(m.storage!=null)parts.push(`<span title="Space Clipsurge uses on disk (videos, clips, models). Click to open the folder." class="stor" id="stor">DISK <b>${m.storage>=1e11?Math.round(m.storage/1e9):(m.storage/1e9).toFixed(1)}</b> GB</span>`);
    parts.push(`<span title="System memory in use">RAM <b>${gb(m.ram_used)}</b>/${gb(m.ram_total)} GB</span>`);
    if(m.llm.loaded){const raw=(m.llm.name||"").split(/[\\/]/).pop().replace(/\.gguf$/i,"")||"language model",short=raw.replace(/[-_]?(instruct|chat|it)(?=[-_.]|$)/ig,"").replace(/[-_]gguf$/i,""),nm=short.length>22?short.slice(0,21)+"…":short;
-    parts.push(`<span class="mdl" title="${esc(raw)}${m.llm.ready?"":" (loading)"}">MODEL <b>${esc(nm)}</b>${m.llm.ready?"":" ..."}</span>`);
+    parts.push(`<span class="mdl" title="${esc(raw)}${m.llm.ready?"":" (loading)"}"><i class="ml">MODEL </i><b>${esc(nm)}</b>${m.llm.ready?"":" ..."}</span>`);
     parts.push(`<button class="g sm unl" id="unl" title="Unload ${esc(raw)} (loaded by Clipsurge)">${withIco("power","Unload",12)}</button>`)}
    const h=parts.join("");if(mem.dataset.h!==h){mem.dataset.h=h;mem.innerHTML=h;setTimeout(fit,0);const u=document.getElementById("unl");if(u)u.onclick=unload;const s=document.getElementById("stor");if(s)s.onclick=()=>post("/api/open-folder",{})}
    mem.hidden=false}
