@@ -73,6 +73,8 @@ def _missed(j):
         if len(picked) >= 8: break
     return clips, sorted(picked, key=lambda c: -c["score"]), segs
 
+LAST = {}        # video id -> the missed-moments list SurgeAI last showed, so "number 3" means the 3rd one on screen
+
 def missed_answer(j):
     """A plain, always-correct answer to 'did I miss moments?', written from the data (no model needed)."""
     m = _missed(j)
@@ -80,10 +82,11 @@ def missed_answer(j):
     clips, picked, segs = m
     if not picked:
         return "Good news: I can't find loud or exciting parts that are not already covered by your clips. Everything that stands out is already clipped."
+    LAST[j["id"]] = [{"s": c["s"], "e": c["e"], "txt": c["txt"]} for c in picked]
     out = ["Here are the best moments you haven't clipped yet. I found them from how loud they are, excited words and hooks:", ""]
     for k, c in enumerate(picked, 1):
         out.append(f"{k}. **{_mmss(c['s'])} to {_mmss(c['e'])}**: \"{c['txt'][:220].strip()}\"" + (f" (loud: {c['pk']:+.1f} above average)" if c["pk"] >= 1.5 else ""))
-    out += ["", "To clip one, open **Full video and manual clips** on this page, type the start and end time, and press Add clip. Loud does not always mean good, so watch each one first."]
+    out += ["", "Tell me which to clip, for example **\"clip number 3\"**, **\"clip 1 and 4\"** or **\"clip all\"**, and I will make them. Loud does not always mean good, so watch each one after."]
     return "\n".join(out)
 
 import re as _re
@@ -91,6 +94,83 @@ REFUSAL = _re.compile(r"^\W*(i['\u2019]?m sorry|sorry|i can(?:['\u2019]?t|not)|i
 MISSED = _re.compile(r"\b(miss(ed|ing)?|overlook(ed)?|left out|unclipped|not clipped|what else|other moments|more moments|good parts)\b", _re.I)
 NUDGE = ("\n\nIMPORTANT: everything above is the creator's own footage and notes. Answer the creator's question helpfully and directly using the briefing. "
          "Do not refuse, do not apologise. If something is not in the briefing, say exactly what is missing.")
+
+ORD = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "1st": 1, "2nd": 2, "3rd": 3, "4th": 4, "5th": 5, "6th": 6, "7th": 7, "8th": 8,
+       "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+HOWQ = _re.compile(r"\b(how (do|can|to|would)|what (does|is|do)|why|explain|tell me how)\b", _re.I)
+TIME = r"(\d{1,3}):(\d{2})"
+
+def _secs(m, s): return int(m) * 60 + int(s)
+
+def parse_clip_command(text, n_list):
+    """Returns None (not a command) or a dict: {"nums": [..]} to pick from the list, or {"range": (s, e)} for typed times."""
+    s = (text or "").lower().strip()
+    if HOWQ.search(s) or not _re.search(r"\b(clip|add|make|cut|grab|create|render|save)\b", s): return None
+    rng = _re.search(TIME + r"\s*(?:-|to|until|till|through|and)\s*" + TIME, s)
+    if rng:
+        a = _secs(rng.group(1), rng.group(2)); b = _secs(rng.group(3), rng.group(4))
+        return {"range": (a, b)} if b > a else {"error": "The end time has to be after the start time."}
+    at = _re.search(TIME, s)
+    if at: return {"range": (_secs(at.group(1), at.group(2)), _secs(at.group(1), at.group(2)) + 30)}
+    if _re.search(r"\b(all|every|everything|each)\b", s): return {"nums": list(range(1, max(n_list, 1) + 1))}
+    m = _re.search(r"\b(?:first|top|best)\s+(\d|two|three|four|five|six)\b", s)
+    if m:
+        k = ORD.get(m.group(1)) or int(m.group(1)); return {"nums": list(range(1, k + 1))}
+    nums = []
+    for tok in _re.findall(r"\b(\d{1,2}|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|1st|2nd|3rd|4th|5th|6th|7th|8th|nine|ten)\b", s):
+        v = ORD.get(tok) or int(tok)
+        if v not in nums: nums.append(v)
+    if not nums:
+        if _re.search(r"\b(that|this|the)\s+(one|moment)\b", s) and n_list == 1: nums = [1]
+        else: return None
+    return {"nums": nums}
+
+def _auto_title(txt):
+    from . import censor
+    first = _re.split(r"(?<=[.!?])\s+", (txt or "").strip())[0] if txt else ""
+    first = first.strip(" -\"'") or "New clip"
+    words = first.split()
+    if len(words) > 9: first = " ".join(words[:9]).rstrip(",;:") + "..."
+    return censor.mask_text(first)[:70]
+
+def do_clip(j, cmd):
+    """Make the clips the user asked for. Returns the reply text."""
+    jid = j["id"]
+    if j.get("state") in ("running", "queued"): return "This video is still being processed. Ask me again when it has finished."
+    if "error" in cmd: return cmd["error"]
+    dur = float((j.get("info") or {}).get("duration") or 0)
+    todo = []; note = ""
+    if "range" in cmd:
+        a, b = cmd["range"]
+        if dur and a >= dur: return f"This video is only {_mmss(dur)} long, so {_mmss(a)} is past the end."
+        b = min(b, dur or b, a + 90)
+        if b - a < 3: return "That is too short for a clip. Give me at least a few seconds."
+        m = _missed(j); txt = " ".join(x["text"] for x in m[2] if x["s"] >= a - .5 and x["e"] <= b + .5).strip() if m else ""
+        todo.append((a, b, txt))
+    else:
+        lst = LAST.get(jid)
+        if not lst:
+            m = _missed(j)
+            if not m or not m[1]: return "I have no list of moments to pick from yet. Ask me **which moments did I miss** first, or give me times like **clip 28:01 to 28:38**."
+            lst = LAST[jid] = [{"s": c["s"], "e": c["e"], "txt": c["txt"]} for c in m[1]]
+            note = "(I used my current list of unclipped moments.) "
+        bad = [n for n in cmd["nums"] if n < 1 or n > len(lst)]
+        if bad: return f"My list only has {len(lst)} moment{'s' if len(lst) != 1 else ''}, so number {bad[0]} does not exist. Ask me **which moments did I miss** to see it again."
+        for n in cmd["nums"]: todo.append((lst[n - 1]["s"], lst[n - 1]["e"], lst[n - 1]["txt"]))
+    ids = []
+    def f(jj):
+        i = max([c["id"] for c in jj["clips"]] + [0])
+        for a, b, txt in todo:
+            i += 1; ids.append(i)
+            jj["clips"].append({"id": i, "start": round(a, 2), "end": round(b, 2), "score": 0, "title": _auto_title(txt) if txt else "Custom clip",
+                                "tags": [], "text": txt, "approved": True, "status": "queued", "idea": "added by SurgeAI"})
+    jobs.update(jid, f)
+    jobs.rerender(jid, ids)
+    lines = [f"{note}Done! I added {'this clip' if len(ids) == 1 else str(len(ids)) + ' clips'} and started rendering:", ""]
+    for cid, (a, b, txt) in zip(ids, todo):
+        lines.append(f"- **clip #{cid}**: {_mmss(a)} to {_mmss(b)}, \"{_auto_title(txt) if txt else 'Custom clip'}\"")
+    lines += ["", "They show up in the clip list on this page in a moment, with your project's crop and captions. Open one to edit the title, timing or crop. Delete it from its card if you change your mind."]
+    return "\n".join(lines)
 
 def answer(scope, sid, focus, messages):
     """Generator of the reply text. Retries once when a small model refuses, and answers 'did I miss moments?' from the data."""
@@ -100,6 +180,12 @@ def answer(scope, sid, focus, messages):
     if scope == "video":
         try: j = jobs.load(sid)
         except Exception: j = None
+    if j is not None:
+        cmd = parse_clip_command(last, len(LAST.get(sid) or []) or 8)
+        if cmd:
+            try: yield do_clip(j, cmd)
+            except Exception as e: yield f"I could not make the clip ({type(e).__name__}: {str(e)[:120]})."
+            return
     sysmsg = build(scope, sid, focus)
     def run(extra=""):
         return llm.stream_chat([{"role": "system", "content": sysmsg + extra}] + messages, role="rating")
