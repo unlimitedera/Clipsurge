@@ -348,7 +348,7 @@ button,a.btn{display:inline-flex;align-items:center;gap:7px;justify-content:cent
 .memmeter b{color:var(--tx);font-weight:700}.memmeter .unl{padding:4px 9px;text-transform:none;letter-spacing:0}
 #stopb:hover{color:var(--red);border-color:var(--red)}
 .stopped{position:fixed;inset:0;z-index:9999;background:var(--bg);display:grid;place-items:center;text-align:center}
-@media(max-width:1500px){.memmeter{display:none}}
+.hright.nost #st{display:none}.hright.nomem .memmeter{display:none}
 header{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)}header .nav{justify-self:center}header .brand{justify-self:start}#st{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:900px){header{grid-template-columns:1fr auto}}
 
@@ -500,3 +500,5 @@ button.uib:hover{color:var(--lime);border-color:var(--lime);filter:none}.uit.err
 .upd-pill{padding:6px 11px;margin-right:2px}
 
 @media (max-width:1600px){.upd-pill{padding:6px 9px}.upd-pill{font-size:0}.upd-pill svg{margin:0}}
+
+.hright.cmp .g.sm{font-size:0;gap:0;padding-left:9px;padding-right:9px}.hright.cmp .g.sm svg{margin:0}

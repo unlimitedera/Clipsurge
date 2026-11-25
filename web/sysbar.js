@@ -6,6 +6,14 @@
  const stop=document.createElement("button");stop.className="g sm";stop.id="stopb";stop.title="Stop Clipsurge";stop.innerHTML=withIco("stop","Stop",13);
  const rs=document.getElementById("restart");rs.after(stop);
  let last=null,dead=false;
+ function fit(){ /* drop the model name, then meter items one by one (RAM, DISK, VRAM), until the right side clears the centred tabs */
+  const nav=document.querySelector("header .nav");if(!nav)return;
+  hr.classList.remove("nost","nomem","cmp");const items=[...mem.children].filter(c=>c.tagName==="SPAN");items.forEach(c=>c.style.display="");
+  const over=()=>hr.getBoundingClientRect().left<nav.getBoundingClientRect().right+14;
+  if(!over())return;hr.classList.add("nost");
+  for(let k=items.length-1;k>=0&&over();k--)items[k].style.display="none";
+  if(over())hr.classList.add("nomem");if(over())hr.classList.add("cmp")}
+ window.fitHeader=fit;addEventListener("resize",fit);setTimeout(fit,300);
  const gb=n=>n==null?"-":(n>=10?Math.round(n):n.toFixed(1));
  async function tick(){
   if(dead)return;
@@ -15,7 +23,7 @@
    if(m.storage!=null)parts.push(`<span title="Space Clipsurge uses on disk (videos, clips, models). Click to open the folder." class="stor" id="stor">DISK <b>${m.storage>=1e11?Math.round(m.storage/1e9):(m.storage/1e9).toFixed(1)}</b> GB</span>`);
    parts.push(`<span title="System memory in use">RAM <b>${gb(m.ram_used)}</b>/${gb(m.ram_total)} GB</span>`);
    if(m.llm.loaded)parts.push(`<button class="g sm unl" id="unl" title="Unload ${esc(m.llm.name||"the language model")} (loaded by Clipsurge)">${withIco("power","Unload model",12)}</button>`);
-   const h=parts.join("");if(mem.dataset.h!==h){mem.dataset.h=h;mem.innerHTML=h;const u=document.getElementById("unl");if(u)u.onclick=unload;const s=document.getElementById("stor");if(s)s.onclick=()=>post("/api/open-folder",{})}
+   const h=parts.join("");if(mem.dataset.h!==h){mem.dataset.h=h;mem.innerHTML=h;setTimeout(fit,0);const u=document.getElementById("unl");if(u)u.onclick=unload;const s=document.getElementById("stor");if(s)s.onclick=()=>post("/api/open-folder",{})}
    mem.hidden=false}
   catch(e){mem.hidden=true}
   setTimeout(tick,5000)}

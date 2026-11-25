@@ -10,7 +10,7 @@
  const ago=d=>{if(!d)return"";const s=(Date.now()-new Date(d))/1000;if(s<3600)return Math.max(1,Math.round(s/60))+" min ago";if(s<86400)return Math.round(s/3600)+" h ago";return Math.round(s/86400)+" days ago"};
  async function check(force){
   try{info=await jget("/api/update"+(force?"?force=true":""))}catch(e){info=null;return null}
-  pill.hidden=!(info.available&&(force||auto()));
+  pill.hidden=!(info.available&&(force||auto()));if(window.fitHeader)fitHeader();
   window.UPD=info;const v=document.getElementById("updver");if(v)v.textContent=verText();
   return info}
  function verText(){if(!info)return"";return info.current?`${info.current}${info.current_date?" · updated "+ago(info.current_date):""}`:"unknown"}
