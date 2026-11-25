@@ -9,7 +9,6 @@
  const defs=document.createElement("div");defs.style.cssText="position:absolute;width:0;height:0;overflow:hidden";
  defs.innerHTML=`<svg width="0" height="0" aria-hidden="true"><defs>
   <linearGradient id="sai-body" x1="0" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#e4ff7a"/><stop offset="0.55" stop-color="#c6ff3d"/><stop offset="1" stop-color="#a5e01f"/></linearGradient>
-  <linearGradient id="sai-iris" x1="0" y1="0" x2="0" y2="1"><stop offset=".25" stop-color="#0d1117"/><stop offset="1" stop-color="#6b7684"/></linearGradient>
   <linearGradient id="sai-fold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7da514"/><stop offset="1" stop-color="#3f5a08"/></linearGradient>
   <radialGradient id="sai-glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#c6ff3d" stop-opacity=".45"/><stop offset="1" stop-color="#c6ff3d" stop-opacity="0"/></radialGradient>
   <clipPath id="sai-scr"><rect x="54.2" y="74" width="11.6" height="20" rx="1.6"/></clipPath>
@@ -17,14 +16,6 @@
  document.body.appendChild(defs);
 
  /* ------------------------------------------------------------ markup */
- /* a big anime-style eye: white, a dark iris that fades to grey at the bottom, a glossy highlight and a thick upper lash */
- const eye=(n,cx,sg)=>`<g data-k="e${n}"><g transform="translate(${cx} 40)">
-   <ellipse rx="6.9" ry="8" fill="#fbfff0" stroke="#7da514" stroke-opacity=".35" stroke-width=".6"/>
-   <g data-k="i${n}"><ellipse rx="5.1" ry="6.3" cy=".6" fill="url(#sai-iris)"/><ellipse rx="3" ry="3.9" cy="-.2" fill="${INK}"/>
-    <ellipse cx="${-1.7*sg}" cy="-2.6" rx="2.1" ry="2.5" fill="#fff"/><circle cx="${2*sg}" cy="2.6" r="1" fill="#fff" opacity=".85"/></g>
-   <path d="M${-7.8*sg} -2.2 Q${-6.2*sg} -9.8 ${0.4*sg} -9.2 Q${6.6*sg} -8.6 ${7.8*sg} -2.6" fill="none" stroke="${INK}" stroke-width="2.6" stroke-linecap="round"/>
-   <path d="M${6.4*sg} -7.2 L${9.2*sg} -9.4" stroke="${INK}" stroke-width="1.8" stroke-linecap="round"/>
-  </g></g>`;
  window.surgeBot=function(size,state){
   size=size||64;
   const bars=[0,1,2,3,4].map(i=>`<rect x="55.4" y="${75+i*8}" width="${6+(i*5)%5}" height="2.2" rx="1" fill="${["#c6ff3d","#7fd4ff","#ff9ec0","#ffd166","#c6ff3d"][i]}"/><rect x="55.4" y="${78.4+i*8}" width="9" height="1.6" rx=".8" fill="#5a6572"/>`).join("");
@@ -41,7 +32,7 @@
     <path d="M69 94 L98 65" stroke="#fff" stroke-opacity=".5" stroke-width="1.6" stroke-linecap="round"/>
     <g data-k="blush" opacity="0"><ellipse cx="34" cy="62" rx="6" ry="3.4" fill="#ff7b7b" opacity=".5"/><ellipse cx="86" cy="62" rx="6" ry="3.4" fill="#ff7b7b" opacity=".5"/></g>
     <g data-k="look">
-     <g data-k="eN">${eye("L",41.5,-1)}${eye("R",78.5,1)}</g>
+     <g data-k="eN"><ellipse data-k="eL" cx="41.5" cy="40" rx="7" ry="7.6" fill="${INK}"/><ellipse data-k="eR" cx="78.5" cy="40" rx="7" ry="7.6" fill="${INK}"/></g>
      <g data-k="eH" opacity="0"><path d="M33 42 Q41 33 50 42" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/><path d="M70 42 Q79 33 87 42" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round"/></g>
      <g data-k="eS" opacity="0"><path d="M33 42 L50 36" stroke="${INK}" stroke-width="4.2" stroke-linecap="round"/><path d="M87 42 L70 36" stroke="${INK}" stroke-width="4.2" stroke-linecap="round"/></g>
      <g data-k="eC" opacity="0"><path d="M33 41 Q41 44.5 50 41" fill="none" stroke="${INK}" stroke-width="3.6" stroke-linecap="round"/><path d="M70 41 Q79 44.5 87 41" fill="none" stroke="${INK}" stroke-width="3.6" stroke-linecap="round"/></g>
@@ -193,7 +184,6 @@
   set(E.legL,"transform",`rotate(${c.lLegR.toFixed(2)} 46 94)`);set(E.legR,"transform",`rotate(${c.rLegR.toFixed(2)} 74 94)`);
   set(E.look,"transform",`translate(${c.lookX.toFixed(2)} ${c.lookY.toFixed(2)})`);
   const es=(el,cx)=>set(el,"transform",`translate(${cx} 40) scale(${c.eyeSX.toFixed(3)} ${Math.max(.06,c.eyeSY).toFixed(3)}) translate(${-cx} -40)`);es(E.eL,41.5);es(E.eR,78.5);
-  const ix=Math.max(-1.6,Math.min(1.6,c.lookX*.45)),iy=Math.max(-1.8,Math.min(1.8,c.lookY*.5));set(E.iL,"transform",`translate(${ix.toFixed(2)} ${iy.toFixed(2)})`);set(E.iR,"transform",`translate(${ix.toFixed(2)} ${iy.toFixed(2)})`);
   set(E.eN,"opacity",Math.max(0,c.eN).toFixed(2));set(E.eH,"opacity",Math.max(0,c.eH).toFixed(2));set(E.eS,"opacity",Math.max(0,c.eS).toFixed(2));set(E.eC,"opacity",Math.max(0,c.eC).toFixed(2));
   const op=Math.min(1,Math.max(0,c.open)),lineV=Math.max(0,1-op*4)*(1-c.mD)*(1-c.mK)*(i.state==="idle"&&i.act==="music"?0:1);
   set(E.mL,"d",`M${60-c.mW} 67 Q60 ${(67+c.curv).toFixed(2)} ${60+c.mW} 67`);set(E.mL,"opacity",Math.max(0,Math.min(1,1-op*4-c.mD-c.mK)).toFixed(2));
