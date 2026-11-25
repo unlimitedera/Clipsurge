@@ -49,7 +49,7 @@ def _brief(b):
     return {"ideas": _lines(b.get("ideas")), "avoid": _lines(b.get("avoid")),
             "prompt": str(b.get("prompt") or "").strip()[:4000]}
 
-DEF_KEYS = ("mode", "count", "minlen", "maxlen", "layout", "captions", "language", "whisper_model")
+DEF_KEYS = ("mode", "count", "minlen", "maxlen", "layout", "captions", "language", "whisper_model", "censor")
 
 def _defaults(d):
     return {k: d[k] for k in DEF_KEYS if d and d.get(k) not in (None, "")}

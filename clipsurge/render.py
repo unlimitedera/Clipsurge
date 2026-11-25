@@ -6,7 +6,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from .config import FFMPEG
-from . import settings
+from . import settings, censor
 
 W, H = 1080, 1920
 _ENV = dict(os.environ, PATH=str(Path(FFMPEG).parent) + os.pathsep + os.environ.get("PATH", ""))
@@ -232,6 +232,7 @@ def write_ass(path, words, start, end, style="pop", opts=None):
     align, mv = POS.get(opts.get("pos") or "bottom", POS["bottom"])
     upper = opts.get("upper", True)
     edits = opts.get("edits") or {}
+    cens = bool(opts.get("censor"))
     tt = opts.get("title")          # {"text", "t0", "t1"}: separate on-screen title while it is narrated
     tmv, tal = (180, 8) if (opts.get("pos") or "bottom") != "top" else (760, 2)
     tstyle = (f"Style: Title,{font},{int(size * 0.9)},&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,-1,0,0,0,"
@@ -264,6 +265,7 @@ def write_ass(path, words, start, end, style="pop", opts=None):
             parts = []
             for m, x in enumerate(grp):
                 txt = str(edits.get(str(x["i"]), x["w"])).replace("{", "").replace("}", "")
+                if cens: txt = censor.mask_word(txt)
                 txt = txt.upper() if upper else txt
                 parts.append(("{\\c&H%s&}%s{\\c&H%s&}" % (hi, txt, col)) if m == k else txt)
             line = " ".join(parts)
@@ -273,6 +275,7 @@ def write_ass(path, words, start, end, style="pop", opts=None):
                          f"\\t(0,80,\\fscx100\\fscy100)}}{line}")
     if tt and tt.get("text"):
         line = str(tt["text"]).replace("{", "").replace("}", "")
+        if cens: line = censor.mask_text(line)
         if any("\u0590" <= ch <= "\u08ff" for ch in line):
             line = "\u202b" + line + "\u202c"
         lines.append(f"Dialogue: 1,{_ts(tt['t0'])},{_ts(tt['t1'])},Title,,0,0,0,,{{\\fad(250,350)}}{line}")
@@ -476,7 +479,7 @@ def _plan_speaker(video, start, end, fw, fh, tr, prog, log, clip):
         return None
 
 def render_clip(video, info, tr, clip, out_path, layout="auto", cap_style="pop",
-                captions=True, log=print, prog=None, mode="auto", webcam=None, narr=None):
+                captions=True, log=print, prog=None, mode="auto", webcam=None, narr=None, censor_job=None):
     ed = clip.get("edit") or {}
     layout = ed.get("layout") or layout
     cp = ed.get("captions") or {}
@@ -488,17 +491,18 @@ def render_clip(video, info, tr, clip, out_path, layout="auto", cap_style="pop",
     work = out_path.parent
     raw = work / f"clip{clip['id']}_raw.mp4"
     ass_name = f"clip{clip['id']}.ass"
+    cens = censor.enabled(ed.get("censor"), censor_job)
     nr = _narr_cfg(ed, narr, clip)
     tts = None
     if nr["on"] and nr["text"]:
         if prog: prog(0.01, "Recording title narration")
-        tts = _tts(nr["text"], nr["voice"], tr.get("language"), work, clip["id"], log)
+        tts = _tts(censor.narration_text(nr["text"]) if cens else nr["text"], nr["voice"], tr.get("language"), work, clip["id"], log)
     title_ev = None
     if tts and nr["caption"]:
         sp = float((ed.get("video") or {}).get("speed") or 1.0)
         title_ev = {"text": nr["text"], "t0": 0.15 / sp, "t1": (0.3 + tts[1] + 0.5) / sp}
     n_cap = write_ass(work / ass_name, tr["words"] if captions else [], start, end, cap_style,
-                      {**cp, "edits": ed.get("word_edits"), "title": title_ev}) if (captions or title_ev) else 0
+                      {**cp, "edits": ed.get("word_edits"), "title": title_ev, "censor": cens}) if (captions or title_ev) else 0
     ass = f",ass={ass_name}" if n_cap else ""
     fw, fh = info["width"], info["height"]
     ts = xs = cam = spk = None

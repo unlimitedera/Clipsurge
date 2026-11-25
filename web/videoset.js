@@ -19,7 +19,7 @@ function redoStep(i){
   if(!r.ok){toast((await r.json().catch(()=>({}))).detail||"Could not start","err");return}
   m.close();toast("Working on "+name.toLowerCase());poll1()}}
 
-const VS_KEYS=["mode","count","minlen","maxlen","layout","captions","language","whisper_model"];
+const VS_KEYS=["mode","count","minlen","maxlen","layout","captions","language","whisper_model","censor"];
 async function vsetInit(pid,jid){
  const host=$("vset");if(!host)return;
  let P,j;try{[P,j]=await Promise.all([jget("/api/projects/"+pid),jget("/api/jobs/"+jid)])}catch(e){host.innerHTML="";return}
@@ -33,7 +33,7 @@ async function vsetInit(pid,jid){
    <label style="margin-top:8px">Describe it in your own words<textarea id="vs-p" rows="5" ${on?"":"disabled"}>${esc(brief.prompt||"")}</textarea></label></div>
    <div class="two"><label>Video type<select id="vs-mode" ${on?"":"disabled"}>${opt2(d.mode||"auto",MODES)}</select></label><label>Clips<input type="number" id="vs-count" min="1" max="20" value="${d.count||5}" ${on?"":"disabled"}></label>
    <label>Crop<select id="vs-layout" ${on?"":"disabled"}>${opt2(d.layout||"auto",LAYOPT)}</select></label><label>Captions<select id="vs-captions" ${on?"":"disabled"}>${opt2(d.captions||"pop",[["pop","Pop"],["clean","Clean"],["fire","Fire"],["off","Off"]])}</select></label>
-   <label>Spoken language<select id="vs-language" ${on?"":"disabled"}>${opt2(d.language||"auto",LANGS)}</select></label><label>Speech model<select id="vs-whisper_model" ${on?"":"disabled"}>${opt2(d.whisper_model||"",[["","Settings default"],["small","small (fast)"],["medium","medium"],["large-v3","large-v3 (best, use for Arabic)"]])}</select></label>
+   <label>Bad language<select id="vs-censor" ${on?"":"disabled"}>${opt2(d.censor||"",[["","Follow the setting above"],["on","Hide curse words"],["off","Show as spoken"]])}</select></label><label>Spoken language<select id="vs-language" ${on?"":"disabled"}>${opt2(d.language||"auto",LANGS)}</select></label><label>Speech model<select id="vs-whisper_model" ${on?"":"disabled"}>${opt2(d.whisper_model||"",[["","Settings default"],["small","small (fast)"],["medium","medium"],["large-v3","large-v3 (best, use for Arabic)"]])}</select></label>
    <label>Shortest (s)<input type="number" id="vs-minlen" value="${d.minlen||20}" ${on?"":"disabled"}></label><label>Longest (s)<input type="number" id="vs-maxlen" value="${d.maxlen||55}" ${on?"":"disabled"}></label></div></div>
    ${on?`<div class="row" style="justify-content:flex-start;gap:10px;margin-top:10px"><button id="vsSave">Save</button><button class="g" id="vsRedo">Save and find moments again</button></div>`:""}</div>`;
  const TI=makeTags($("vs-i"),brief.ideas||[],"Funny reactions, clutch plays..."),TA=makeTags($("vs-a"),brief.avoid||[],"Sponsor reads, menus...");

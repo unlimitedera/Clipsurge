@@ -304,6 +304,7 @@ def suggest(jid, cid, wait=True):
     items, seen = [], set()
     def add(tag, src, w):
         t = _norm(tag)
+        if t and topic.isascii() and not t.isascii(): return
         if t and t not in seen: seen.add(t); items.append({"tag": t, "src": src, "w": w})
     for t in c.get("tags") or []: add(t, "clip", 100)
     for t in mine: add(t, "yours", 90)

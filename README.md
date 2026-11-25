@@ -44,6 +44,8 @@ Full guide, options and troubleshooting: [docs/INSTALL.md](docs/INSTALL.md)
 | **Editor** | Timing, crop, captions, sound (noise reduction, voice effects, music with ducking), look (speed, fades, colour). |
 | **Upload** | Send clips to YouTube Shorts with a live progress box. |
 | **Agents** | Control everything from Hermes, Claude Code or any MCP client. |
+| **Bad language filter** | Captions show F*** and the title narrator only says the first part of a curse word. Set it globally, per project, per video or per clip. |
+| **Learns from your uploads** | Reads the views, likes and comments of what you post, shows what works for you, and adds fitting trending tags to uploads. |
 | **Updates** | Tells you when a new version is on GitHub and updates itself with one click. |
 | **Private** | Videos, transcripts and clips stay on your computer. |
 

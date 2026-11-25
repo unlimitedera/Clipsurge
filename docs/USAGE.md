@@ -173,7 +173,29 @@ Settings > AI and agents:
 
 Settings > AI and agents > Agent control (MCP) shows ready to paste commands for Hermes, Claude Code and Claude Desktop. An agent can list and create projects, add videos, check progress, search moments by describing them, add clips and upload.
 
-## 16. Updates
+## 16. Bad language filter
+
+Turn on **Hide curse words** and curses are hidden in two places:
+
+- **Captions** show the first letter and stars: `F***`, `S***`. The SRT file does the same.
+- **Title narration**: the narrator says only the first part of the word ("fu...", "sh...") and the on-screen title shows `f***`.
+
+Where to set it, most specific wins: **Editor > Captions > Bad language** (one clip, also in the manual clipper), **Goals and settings for this video** (one video, with Override on), **Goals and settings** of the project, then **Settings > Clipping > Bad language** for everything. Each one can say Hide, Show, or follow the level above. You can add your own words in Settings.
+
+It matches whole words in English, Spanish, French, German, Turkish and Arabic, so "class" and "assume" are left alone. It does not change the sound of the original video: a curse in the clip's own audio is still heard. Names that look like a curse (a person called Dick) are hidden too. Redo *Crop + captions* to apply it to clips you already made.
+
+## 17. Performance and trending tags
+
+**Overview > Performance of your uploads** shows views, likes and comments for every clip you uploaded from Clipsurge, ranks them, and explains what the best ones have in common: clip length, crop, title style, tags, when you posted. It needs at least 4 uploads with numbers before it states patterns, and says how sure it is. Few videos can be luck, so read it as hints, not rules.
+
+- Uploads set to **Private** hide their numbers. Press **Allow Clipsurge to read stats** once (Google asks again; Clipsurge only reads counts). Public and unlisted uploads work without it.
+- **Learn from my results** (Settings > Accounts > YouTube) lets Clipsurge use your best clips as a reference when it picks moments and writes titles.
+- **Trending tags**: type a topic to see tags used by two or more different channels on popular shorts about it.
+- **Suggest tags when uploading** opens a window with tags from the clip, from your best videos and from trending videos on the topic. Remove any you do not want. The first three become hashtags in the description.
+
+Nothing can promise a video goes viral. Clipsurge only suggests tags that fit the topic.
+
+## 18. Updates
 
 When a new version is on GitHub, an **Update** button appears in the top bar. Click it to see what changed, then **Update now**. Clipsurge downloads the new files, checks them, installs them and restarts, then the page reloads on its own. Your projects, videos, clips, settings and YouTube key are not touched. If a video is processing, wait for it to finish first.
 

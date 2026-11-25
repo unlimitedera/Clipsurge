@@ -117,10 +117,12 @@ async function openEditor(jid,cid,onSaved){
    <label>Position<select data-c="pos">${[["bottom","Bottom"],["middle","Middle"],["top","Top"]].map(([k,t])=>`<option value="${k}" ${(c.pos||"bottom")==k?"selected":""}>${t}</option>`).join("")}</select></label>
    ${sl("Size","size",40,140,2,c.size||84)}${sl("Words per line","per",1,6,1,c.per||3)}
    <label>Highlight color<input type="color" data-c="hi" value="${c.hi||"#c6ff3d"}"></label>
+   <label>Bad language<select data-cs>${[["","Follow the setting above"],["on","Hide curse words"],["off","Show as spoken"]].map(([k,t])=>`<option value="${k}" ${(ed().censor||"")==k?"selected":""}>${t}</option>`).join("")}</select></label>
    <label class="chk"><input type="checkbox" data-c="upper" ${c.upper===false?"":"checked"}><span>ALL CAPS</span></label></div>
    <div class="capprev"><div class="capmock ${c.pos||"bottom"}" style="font-size:${Math.round((c.size||84)/5)}px"><span>${(c.upper===false?"this is":"THIS IS")}</span> <b style="color:${c.hi||"#c6ff3d"}">${c.upper===false?"your caption":"YOUR CAPTION"}</b></div></div>
    <div class="wordsbar"><b>Fix wording</b><span class="mu small">edit any misheard word</span></div>
    <div class="words edit">${S.words.filter(w=>w.s>=S.start-0.05&&w.e<=S.end+0.3).map(w=>`<input dir="auto" data-wi="${w.i}" value="${esc(edits[w.i]??w.w)}" size="${Math.max(3,(edits[w.i]??w.w).length)}" aria-label="word at ${fmt(w.s)}">`).join("")||'<span class="mu">No speech in this clip.</span>'}</div>`;
+  P.querySelectorAll("[data-cs]").forEach(el=>el.onchange=()=>{if(el.value)ed().censor=el.value;else delete ed().censor});
   P.querySelectorAll("[data-c]").forEach(el=>el.onchange=()=>{const k=el.dataset.c;let v=el.type=="checkbox"?el.checked:el.value;if(k=="style"&&!v){delete c.style}else c[k]=v;captions(P)});
   P.querySelectorAll("[data-k=size],[data-k=per]").forEach(el=>el.oninput=()=>{c[el.dataset.k]=+el.value;P.querySelector(`[data-v=${el.dataset.k}]`).textContent=el.value});
   P.querySelectorAll("[data-k=size],[data-k=per]").forEach(el=>el.onchange=()=>captions(P));

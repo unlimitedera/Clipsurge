@@ -243,7 +243,7 @@ function drawBrief(P){
   <div><div class="card"><h3>Project</h3><div class="form"><label>Name<input type="text" id="bn" value="${esc(P.name)}"></label><label>Description<input type="text" id="bd" value="${esc(P.description||"")}"></label></div></div>
   <div class="card"><h3>Defaults for videos in this project</h3><div class="two"><label>Video type<select id="bm">${opt2(d.mode||"auto",MODES)}</select></label><label>Clips per video<input type="number" id="bc" min="1" max="20" value="${d.count||5}"></label>
    <label>Crop<select id="bl">${opt2(d.layout||"auto",LAYOPT)}</select></label><label>Captions<select id="bk">${opt2(d.captions||"pop",[["pop","Pop"],["clean","Clean"],["fire","Fire"],["off","Off"]])}</select></label>
-   <label>Spoken language<select id="blang">${opt2(d.language||"auto",LANGS)}</select></label><label>Speech model<select id="bwm">${opt2(d.whisper_model||"",[["","Use the Settings default"],["small","small (fast)"],["medium","medium"],["large-v3","large-v3 (best, use for Arabic)"]])}</select></label>
+   <label>Bad language<select id="bcs">${opt2(d.censor||"",[["","Follow the setting above"],["on","Hide curse words"],["off","Show as spoken"]])}</select></label><label>Spoken language<select id="blang">${opt2(d.language||"auto",LANGS)}</select></label><label>Speech model<select id="bwm">${opt2(d.whisper_model||"",[["","Use the Settings default"],["small","small (fast)"],["medium","medium"],["large-v3","large-v3 (best, use for Arabic)"]])}</select></label>
    <label>Shortest (s)<input type="number" id="bmin" value="${d.minlen||20}"></label><label>Longest (s)<input type="number" id="bmax" value="${d.maxlen||55}"></label></div></div>
   <div class="row" style="justify-content:flex-start;gap:10px"><button id="bsave">Save</button><button class="g" id="bapply">Save and re-find in all videos</button></div>
   <div class="card danger-zone"><h3>Delete project</h3><p class="mu small">Removes the project, its videos and all clips Clipsurge made. Your original files are not touched.</p><button class="danger" id="bdel">Delete project</button></div></div></div>`;
@@ -254,7 +254,7 @@ function drawBrief(P){
  el.querySelectorAll("[data-avoid]").forEach(b=>b.onclick=()=>TA.add(b.dataset.avoid));
  const cnt=()=>$("pcount").textContent=$("bp").value.length+" / 4000";$("bp").oninput=cnt;cnt();
  const save=async()=>{const r=await post("/api/projects/"+P.id,{name:$("bn").value,description:$("bd").value,brief:{ideas:TI.get(),avoid:TA.get(),prompt:$("bp").value},
-  defaults:{mode:$("bm").value,count:+$("bc").value,layout:$("bl").value,captions:$("bk").value,minlen:+$("bmin").value,maxlen:+$("bmax").value,language:$("blang").value,whisper_model:$("bwm").value}});if(!r.ok){toast("Could not save","err");return false}toast("Saved");return true};
+  defaults:{mode:$("bm").value,count:+$("bc").value,layout:$("bl").value,captions:$("bk").value,minlen:+$("bmin").value,maxlen:+$("bmax").value,language:$("blang").value,whisper_model:$("bwm").value,censor:$("bcs").value}});if(!r.ok){toast("Could not save","err");return false}toast("Saved");return true};
  $("bsave").onclick=save;
  $("bapply").onclick=async()=>{if(!await save())return;const jobs=(P.jobs||[]).filter(j=>j.video&&!j.override&&!["running","queued"].includes(j.state));
   if(!jobs.length){toast("No finished videos to re-find");return}

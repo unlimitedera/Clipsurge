@@ -61,13 +61,13 @@ async function uploadDialog(jid,cid){
   <div class="two" style="margin-top:8px"><label>Visibility<select id="uPriv">${[["private","Private"],["unlisted","Unlisted"],["public","Public"]].map(([v,l])=>`<option value="${v}" ${S.privacy==v?"selected":""}>${l}</option>`).join("")}</select></label><div></div></div>
   <div style="margin-top:12px"><div class="mu small">Tags <span id="uSt"></span></div><div class="chips2 tagedit" id="uTags"></div>
    <input id="uAdd" placeholder="Add a tag and press Enter" style="margin-top:8px"></div>
-  <div class="legend small mu"><span><u class="d clip"></u>from this clip</span><span><u class="d yours"></u>from your best videos</span><span><u class="d trending"></u>trending on this topic</span><span><u class="d search"></u>people also search</span></div>
+  <div class="legend small mu"><span><u class="dd dd-clip"></u>from this clip</span><span><u class="dd dd-yours"></u>from your best videos</span><span><u class="dd dd-trending"></u>trending on this topic</span><span><u class="dd dd-search"></u>people also search</span></div>
   <label style="margin-top:10px">Description<textarea id="uDesc" rows="3"></textarea></label>
   <p class="mu small" style="margin:6px 0 0">Only tags that fit the video are suggested. Remove any you do not want. Nothing can guarantee views.</p>
   <div class="mfoot"><button class="g" data-x>Cancel</button><button data-go>Upload</button></div>`,{wide:true});
  const B=m.box,q=s=>B.querySelector(s);
  const desc=()=>{if(edited)return;const hs=tags.slice(0,3).map(t=>"#"+t.tag.replace(/\s+/g,""));q("#uDesc").value=q("#uTitle").value+(hs.length?"\n\n"+hs.join(" "):"")};
- const draw=()=>{q("#uTags").innerHTML=tags.map((t,i)=>`<span class="tg ${t.src}"><u class="d ${t.src}"></u>${esc(t.tag)}<button data-rm="${i}" title="Remove">×</button></span>`).join("")||`<span class="mu small">No tags</span>`;
+ const draw=()=>{q("#uTags").innerHTML=tags.map((t,i)=>`<span class="tg"><u class="dd dd-${t.src}"></u>${esc(t.tag)}<button data-rm="${i}" title="Remove">×</button></span>`).join("")||`<span class="mu small">No tags</span>`;
   q("#uTags").querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{gone.add(tags[+b.dataset.rm].tag);tags.splice(+b.dataset.rm,1);draw();desc()});desc()};
  q("#uDesc").oninput=()=>edited=true;q("#uTitle").oninput=desc;
  q("#uAdd").onkeydown=e=>{if(e.key=="Enter"||e.key==","){e.preventDefault();const v=e.target.value.trim().replace(/^#/,"").toLowerCase();if(v&&!tags.some(t=>t.tag==v)){tags.push({tag:v,src:"clip",added:true});gone.delete(v)}e.target.value="";draw()}};

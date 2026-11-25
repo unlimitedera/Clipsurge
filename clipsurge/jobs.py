@@ -3,7 +3,7 @@
 import json, os, threading, time, traceback, uuid
 from concurrent.futures import ThreadPoolExecutor
 from .config import JOBS
-from . import analyze, render, extras, settings, llm, projects
+from . import analyze, render, extras, settings, llm, projects, censor
 from .progress import Tracker, Cancelled
 
 _pool = ThreadPoolExecutor(max_workers=1)
@@ -159,7 +159,7 @@ def set_override(jid, enabled, brief=None, settings_in=None):
             if settings_in:
                 j["settings"].update(projects._defaults(settings_in))
         else:       # back to project: drop this video's own values first so none of them linger
-            for k in ("mode", "count", "minlen", "maxlen", "layout", "captions", "language", "whisper_model"):
+            for k in ("mode", "count", "minlen", "maxlen", "layout", "captions", "language", "whisper_model", "censor"):
                 j["settings"].pop(k, None)
             j["settings"].update(settings.get()["defaults"])
             sync_project(j)
@@ -302,8 +302,9 @@ def render_all(jid, tr, log, only=None):
             used = render.render_clip(video, job["info"], tr, clip, out, st["layout"],
                                       clip.get("caption_style") or st["captions"],
                                       st["captions"] != "off", log, cprog, st["mode"], job.get("webcam"),
-                                      st.get("narration"))
-            extras.write_srt(out.with_suffix(".srt"), tr["words"], clip["start"], clip["end"])
+                                      st.get("narration"), st.get("censor"))
+            extras.write_srt(out.with_suffix(".srt"), tr["words"], clip["start"], clip["end"],
+                             censor.enabled((clip.get("edit") or {}).get("censor"), st.get("censor")))
             setc(cid, status="done", file=f"clips/{out.name}", layout_used=used,
                  rev=clip.get("rev", 0) + 1)
             T.done(name, f"layout: {used}")

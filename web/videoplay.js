@@ -34,6 +34,7 @@ async function vplayBuild(){
     ${sel("vpCPos",o.cpos,["Position",[["","Default"],["bottom","Bottom"],["middle","Middle"],["top","Top"]]])}
     <label>Size<input type="number" id="vpCSize" min="40" max="160" placeholder="auto" value="${o.csize}"></label>
     ${sel("vpCPer",o.cper,["Words per line",[["","Default"],...[1,2,3,4,5,6].map(n=>[n,n])]])}
+    ${sel("vpCens",o.cens,["Bad language",[["","Follow the setting above"],["on","Hide curse words"],["off","Show as spoken"]]])}
     ${sel("vpCUp",o.cupper,["Letters",[["","Default"],["1","ALL CAPS"],["0","Normal"]]])}
     <label>Highlight colour<input type="color" id="vpCHi" value="${o.chi||"#c6ff3d"}"></label></div></div></div>
   <div class="vprow"><label class="grow vpttl">Title<input type="text" id="vpTitle" dir="auto" placeholder="Custom clip" maxlength="95"></label><button id="vpAdd">Add clip</button><button class="g" id="vpAddEd">Add and open editor</button></div>
@@ -105,12 +106,13 @@ async function vplayBuild(){
   window.addEventListener("mousemove",mv);window.addEventListener("mouseup",up);e.preventDefault()};
  $("vpLayout").onchange=e=>{VP.o.layout=e.target.value;vpoSave();cropPlace()};
  $("vpZoom").oninput=e=>{VP.o.zoom=+e.target.value;cropPlace()};$("vpZoom").onchange=vpoSave;
- for(const [id,k] of [["vpCStyle","cstyle"],["vpCPos","cpos"],["vpCSize","csize"],["vpCPer","cper"],["vpCUp","cupper"]])$(id).onchange=e=>{VP.o[k]=e.target.value;vpoSave()};
+ for(const [id,k] of [["vpCens","cens"],["vpCStyle","cstyle"],["vpCPos","cpos"],["vpCSize","csize"],["vpCPer","cper"],["vpCUp","cupper"]])$(id).onchange=e=>{VP.o[k]=e.target.value;vpoSave()};
  $("vpCHi").onchange=e=>{VP.o.chi=e.target.value;vpoSave()};
  // ---- add ----
  function buildEdit(){const o=VP.o,e={};
   if(o.layout){e.layout=o.layout;if(o.layout=="manual")e.manual={cx:+o.cx.toFixed(4),cy:+o.cy.toFixed(4),zoom:+(+o.zoom).toFixed(3)}}
   const c={};if(o.cstyle)c.style=o.cstyle;if(o.cpos)c.pos=o.cpos;if(o.csize)c.size=+o.csize;if(o.cper)c.per=+o.cper;if(o.cupper!=="")c.upper=o.cupper=="1";if(o.chi)c.hi=o.chi;
+  if(o.cens)e.censor=o.cens;
   if(Object.keys(c).length)e.captions=c;return Object.keys(e).length?e:null}
  async function add(openEd){
   const title=$("vpTitle").value.trim()||"Custom clip";$("vpAdd").disabled=$("vpAddEd").disabled=true;

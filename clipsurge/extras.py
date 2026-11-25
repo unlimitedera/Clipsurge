@@ -102,13 +102,13 @@ def _srt_time(t):
     t = max(0, t)
     return f"{int(t // 3600):02d}:{int(t % 3600 // 60):02d}:{int(t % 60):02d},{int(t % 1 * 1000):03d}"
 
-def write_srt(path, words, start, end):
+def write_srt(path, words, start, end, censor_on=False):
     ws = [w for w in words if w["s"] >= start - 0.05 and w["e"] <= end + 0.3]
     out = []
     for n, g in enumerate(range(0, len(ws), 4), 1):
         grp = ws[g:g + 4]
         out.append(f"{n}\n{_srt_time(grp[0]['s'] - start)} --> {_srt_time(grp[-1]['e'] - start)}\n"
-                   + " ".join(w["w"] for w in grp) + "\n")
+                   + " ".join(__import__("clipsurge.censor", fromlist=["x"]).mask_word(w["w"]) if censor_on else w["w"] for w in grp) + "\n")
     Path(path).write_text("\n".join(out), "utf-8")
 
 def write_otio(job, jobdir):

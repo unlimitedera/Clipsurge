@@ -1,7 +1,7 @@
 /* Copyright (c) 2026 unlimitedera. All Rights Reserved. Settings tab. */
 let S=null,PRESETS={},MCPCFG={},YT={};
 const SCATS=[{id:"ai",name:"AI and agents",subs:[["local","Local models"],["conn","Connections"],["mcp","Agent control (MCP)"]]},
- {id:"clip",name:"Clipping",subs:[["defaults","Defaults for new clips"],["features","Features"]]},
+ {id:"clip",name:"Clipping",subs:[["defaults","Defaults for new clips"],["features","Features"],["censor","Bad language"]]},
  {id:"media",name:"Speech and video",subs:[["speech","Speech"],["video","Video"],["narration","Narration"]]},
  {id:"acct",name:"Accounts",subs:[["yt","YouTube"],["obs","OBS"]]},
  {id:"about",name:"About",subs:[["about","About Clipsurge"],["license","License"],["terms","Terms of use"]]}];
@@ -52,6 +52,10 @@ function renderSettings(){
   <label>Longest clip (s)<input type="number" id="d_maxlen" value="${S.defaults.maxlen}"></label>
   <label>Captions<select id="d_captions">${opt(S.defaults.captions,[["pop","Pop"],["clean","Clean"],["fire","Fire"],["off","Off"]])}</select></label></div></div>
 
+ <div class="card sec" data-cat="clip" data-sub="censor" data-t="Bad language curse swear words censor profanity narration captions stars"><h3>Bad language</h3>
+  <label class="chk"><input type="checkbox" id="c_on" ${(S.censor||{}).enabled?"checked":""}><span>Hide curse words <small class="mu">Captions show the first letter and stars (F***). The title narrator says only the first part of the word. Each project, video and clip can override this.</small></span></label>
+  <label style="margin-top:10px">Extra words to hide<textarea id="c_words" rows="2" placeholder="Separate words with commas">${E((S.censor||{}).words||"")}</textarea></label>
+  <p class="mu small" style="margin:8px 0 0">Covers common English, Spanish, French, German, Turkish and Arabic curse words. It matches whole words, so normal words like "class" are left alone. The sound of the original video is not changed.</p></div>
  <div class="card sec" data-cat="clip" data-sub="features" data-t="Features"><h3>Features</h3><div class="three">
   ${[["llm_rating","AI rating and titles","Needs a connected model"],["ocr","Read on-screen text (gaming)","Spots KILL, VICTORY, ACE"],["chat_replay","YouTube chat spikes","Busy chat = good moment"],["webcam_detect","Find the webcam","Stacks webcam over gameplay"],["loudness","Balance loudness","Same volume across clips"],["native_only","Captions in the spoken language only","Removes stray English letters from Arabic, Hebrew, Russian and similar"]].map(([k,t,h])=>`<label class="chk"><input type="checkbox" id="f_${k}" ${S.features[k]?"checked":""}><span>${t}<small class="mu"> ${h}</small></span></label>`).join("")}</div></div>
 
@@ -202,7 +206,7 @@ async function saveSettings(){
   transcribe:{model:v("t_model"),language:v("t_language")||"auto",device:v("t_device")},
   video:{encoder:v("v_encoder"),lufs:+v("v_lufs"),caption_size:+v("v_caption_size"),max_height:+v("v_max_height")},
   narration:{enabled:c("n_enabled"),title_caption:c("n_caption"),voice:v("n_voice"),volume:+v("n_volume")||1},
-  youtube:{privacy:v("y_privacy"),smart_tags:c("y_smart"),learn:c("y_learn")},obs:{host:v("o_host"),port:+v("o_port"),password:v("o_password")}};
+  censor:{enabled:c("c_on"),words:v("c_words")},youtube:{privacy:v("y_privacy"),smart_tags:c("y_smart"),learn:c("y_learn")},obs:{host:v("o_host"),port:+v("o_port"),password:v("o_password")}};
  const r=await fetch("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
  const m=document.getElementById("savemsg");
  if(r.ok){const j=await r.json();S=j.settings;m.textContent="Saved";applyDefaults();refreshStatus&&refreshStatus();setTimeout(()=>m.textContent="",2500)}else m.textContent="Could not save"}
