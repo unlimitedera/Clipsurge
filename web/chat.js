@@ -15,7 +15,7 @@
   if(!w){close();return}
   if(!scope||scope.id!==w.id){const was=!!panel;close();scope=w;if(was)open()}else scope=w}
  function md(s){
-  s=esc(s).replace(/```([\s\S]*?)```/g,(_,c)=>`<pre>${c.trim()}</pre>`).replace(/`([^`\n]+)`/g,"<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g,"<b>$1</b>");
+  s=esc(s).replace(/```([\s\S]*?)```/g,(_,c)=>`<pre>${c.trim()}</pre>`).replace(/`([^`\n]+)`/g,"<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g,"<b>$1</b>").replace(/\[\[settings:([\w\/]+)\|([^\]]+)\]\]/g,'<button class="askgo" data-go="$1">$2</button>').replace(/\[(\d+|[^\]\[]{1,40})\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
   const out=[];let list=null;
   for(const raw of s.split("\n")){
    let m;
@@ -45,6 +45,7 @@
    $("askSug").style.display=h.length?"none":"flex";log.scrollTop=log.scrollHeight;wire()};
   $("askSug").innerHTML=SUGG[scope.scope].map(t=>`<button class="chip3" data-q="${esc(t)}">${esc(t)}</button>`).join("");
   const wire=()=>{log.querySelectorAll("[data-tag]").forEach(b=>b.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(b.dataset.tag);toast("Copied "+b.dataset.tag)});
+   log.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{const [cat,sub]=b.dataset.go.split("/");location.hash="#/settings";setTimeout(()=>{try{setNav(cat,sub)}catch(e){}},300);if(fab.classList.contains("on"))fab.click()});
    log.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(b.parentNode.innerText.replace(/Copy$/,"").trim());toast("Copied")})};
   async function send(text){
    text=(text||"").trim();if(!text||busy)return;busy=true;$("askGo").disabled=true;

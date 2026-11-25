@@ -22,6 +22,7 @@ DEFAULTS = {
     },
     "narration": {"enabled": False, "voice": "auto", "volume": 1.0, "title_caption": False},
     "censor": {"enabled": False, "words": ""},
+    "surgeai": {"web": False},
     "youtube": {"privacy": "private", "smart_tags": True, "learn": True},
     "obs": {"host": "localhost", "port": 4455, "password": ""},
 }

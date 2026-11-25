@@ -370,6 +370,15 @@ def do_clip(j, cmd):
     lines += ["", "They show up in the clip list on this page in a moment, with your project's crop and captions. Open one to edit the title, timing or crop. Delete it from its card if you change your mind."]
     return "\n".join(lines)
 
+NEEDNET = _re.compile(r"\b(trend\w*|search(?:ing)? (?:the )?(?:web|internet|online|google|youtube)|google|look ?up|on the internet|online|latest news|news about|what are people|competitors?|right now|currently popular|popular (?:tags|hashtags)|https?://\S+)\b|https?://", _re.I)
+WEBQ = _re.compile(r"\b(trend\w*|viral|tags?|hashtags?|hash tags?|keywords?|analytics|search\w*|google|look ?up|latest|news|popular|what are people|competitors?|best time|views|algorithm|https?://|online|internet)\b", _re.I)
+
+def proj_title(pid):
+    try:
+        from . import projects
+        return (projects.get(pid) or {}).get("name")
+    except Exception: return None
+
 def answer(scope, sid, focus, messages):
     """Generator of the reply text. Retries once when a small model refuses, and answers 'did I miss moments?' from the data."""
     from . import llm
@@ -408,6 +417,25 @@ def answer(scope, sid, focus, messages):
     if j is not None and _re.search(r"\b(renam\w*|retitl\w*|delete|remove|trim|shorten|lengthen|re-?render|add tags?|set the crop)\b", last, _re.I) and not HOWQ.search(last):
         yield "I did not catch exactly what to change, so I changed nothing. Try for example **rename clip 20 to My title**, **delete clip 20**, or ask **what can you do?**"; return
     sysmsg = build(scope, sid, focus)
+    sources = []
+    from . import web as _web
+    if not _web.enabled() and NEEDNET.search(last) and not _re.search(r"\b(how (do|can|to)|where (is|do) (i|the))\b", last, _re.I):
+        yield _web.NEEDS_MSG; return
+    if _web.enabled() and not _re.search(r"\b(missed?|clip)\b", last, _re.I):
+        topic0 = ((j or {}).get("title") if j else None) or (proj_title(sid) if scope == "project" else "") or ""
+        try:
+            if _re.search(r"\b(search (?:the )?(?:web|internet|online|google)|google|look ?up|news)\b", last, _re.I) and not _re.search(r"https?://", last):
+                yield _web.search_answer(last); return
+            if _re.search(r"\b(trend\w*|popular|hashtags?|tags?|what are people searching|keywords?)\b", last, _re.I) and _re.search(r"\b(trend\w*|popular|right now|searching|online|competitors?|best|top|good|viral|use)\b", last, _re.I) and not _re.search(r"\bfor clip\b|\bclip\s*\d", last, _re.I):
+                yield _web.trend_answer(topic0 or last); return
+        except Exception as e: yield f"The internet lookup failed ({type(e).__name__}). Try again in a moment."; return
+    if _web.enabled() and WEBQ.search(last) and not _re.search(r"\bmissed?\b", last, _re.I):
+        try:
+            topic = ((j or {}).get("title") if j else None) or ""
+            if scope == "project": topic = (proj_title(sid) or "")
+            ctx, sources = _web.context(last, topic, topic)
+            if ctx: sysmsg += "\n\nLIVE INTERNET DATA (fetched just now, public): use it for trends, tags and analytics, and name where an idea came from. Only suggest tags that really fit the video.\n" + ctx
+        except Exception: pass
     def run(extra=""):
         return llm.stream_chat([{"role": "system", "content": sysmsg + extra}] + messages, role="rating")
     if j is not None and MISSED.search(last):
@@ -425,6 +453,7 @@ def answer(scope, sid, focus, messages):
         return
     if buf: yield buf
     for piece in it: yield piece
+    if sources: yield "\n\n*Sources looked up online:* " + " ".join(f"[{i + 1}]({u})" for i, u in enumerate(dict.fromkeys(sources)))
 
 def _transcript_and_missed(j):
     """Timestamped transcript (when it fits), the parts already clipped, and the best moments NOT clipped yet.

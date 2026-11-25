@@ -99,7 +99,7 @@ def _topic_words(j, c, have):
     return out[:4]
 
 def do_tags(j, s, ids):
-    jid = j["id"]; low = s.lower(); out = []
+    jid = j["id"]; low = s.lower(); out = []; needs_net = False
     rem = _re.search(r"\b(remove|delete|clear|drop|take (?:off|out)|get rid of)\b", low)
     show = _re.search(r"\b(what|which|show|list|see)\b.*\btags?\b|\btags? (are|does|do)\b", low) and not _re.search(r"\b(add|set|put|give|generate)\b", low)
     for cid in ids:
@@ -111,7 +111,10 @@ def do_tags(j, s, ids):
             _save(jid, cid, lambda cc, k=keep: cc.__setitem__("tags", k)); out.append(f"Clip **#{cid}**: tags now {' '.join(keep) or 'none'}."); continue
         ex = _explicit_tags(s); src = "you gave me"
         if not ex:
-            sug = insights.suggest(jid, cid, wait=True); ex = [x["tag"] for x in sug["tags"]]
+            from . import web as _web
+            online = _web.enabled()
+            sug = insights.suggest(jid, cid, wait=True) if online else {"tags": []}; ex = [x["tag"] for x in sug["tags"]]
+            if not online: needs_net = True
             names = {"yours": "your best videos", "trending": "trending videos on this topic", "search": "what people search for", "clip": "the clip itself"}
             used = [names[x] for x in dict.fromkeys(y["src"] for y in sug["tags"]) if x in names]; src = ("from " + ", ".join(used)) if used else "my own ideas"
             if len(ex) < 5:
@@ -126,6 +129,7 @@ def do_tags(j, s, ids):
         new = new[:8]; total = (have + new)[:15]
         _save(jid, cid, lambda cc, t_=total: cc.__setitem__("tags", t_))
         out.append(f"Clip **#{cid}**: added {' '.join(new) or 'nothing new'} ({src}). All tags: {' '.join(total)}")
+    if needs_net: out.append("\nThese came from my model and the video only. With internet access I can also use trending tags and what people search for.\n\n[[settings:ai/web|Turn on internet access]]")
     return "\n".join(out) + ("" if show else "\n\nThey are saved on the clip and used when you upload it. Only keep ones that really describe the video: misleading tags break platform rules.")
 
 # ------------------------------------------------------------ everything else
@@ -254,6 +258,7 @@ def handle(j, text, last_id):
     if not hit: return None
     ids, err = targets(j, s)
     if err: return err
+    if "tags" in hit and not ids and not _re.search(r"\b(add|set|put|give|generate|apply|remove|clear|tag)\b.*\b(clip|it|that)\b|\b(clip)\b", low): return None   # a question about trends, not an edit
     if not ids:
         if pron and last_id and _ctx_clip(j, last_id): ids = [last_id]
         elif len(j["clips"]) == 1: ids = [j["clips"][0]["id"]]
