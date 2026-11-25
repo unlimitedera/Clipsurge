@@ -74,3 +74,10 @@ function makeTags(host,initial=[],placeholder="Type and press Enter"){
  draw();
  return {get:()=>{const i=host.querySelector("input");if(i&&i.value.trim()&&!tags.includes(i.value.trim()))tags.push(i.value.trim());return [...tags]},
   add:t=>{if(!tags.includes(t)&&tags.length<30){tags.push(t);draw()}}}}
+
+/* Clip previews: a click anywhere on the picture plays or pauses it (the bottom strip keeps the normal controls). */
+document.addEventListener("click",e=>{
+ const v=e.target;if(!(v instanceof HTMLVideoElement)||!v.closest(".phone"))return;
+ const r=v.getBoundingClientRect();if(e.clientY>r.bottom-48)return;
+ e.stopImmediatePropagation();e.preventDefault();
+ if(v.paused){document.querySelectorAll(".phone video").forEach(o=>{if(o!==v)o.pause()});v.play().catch(()=>{})}else v.pause()},true);
