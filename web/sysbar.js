@@ -8,7 +8,7 @@
  let last=null,dead=false;
  function fit(){ /* drop the model name, then meter items one by one (RAM, DISK, VRAM), until the right side clears the centred tabs */
   const nav=document.querySelector("header .nav");if(!nav)return;
-  hr.classList.remove("nost","nomem","cmp");const items=[...mem.children].filter(c=>c.tagName==="SPAN");items.forEach(c=>c.style.display="");
+  hr.classList.remove("nost","nomem","cmp");const items=[...mem.children].filter(c=>c.tagName==="SPAN").sort((a,b)=>(a.classList.contains("mdl")?0:1)-(b.classList.contains("mdl")?0:1));   // the model name is dropped lastitems.forEach(c=>c.style.display="");
   const over=()=>hr.getBoundingClientRect().left<nav.getBoundingClientRect().right+14;
   if(!over())return;hr.classList.add("nost");
   for(let k=items.length-1;k>=0&&over();k--)items[k].style.display="none";
@@ -22,7 +22,9 @@
    if(m.vram_total)parts.push(`<span title="Graphics memory in use">VRAM <b>${gb(m.vram_used)}</b>/${gb(m.vram_total)} GB</span>`);
    if(m.storage!=null)parts.push(`<span title="Space Clipsurge uses on disk (videos, clips, models). Click to open the folder." class="stor" id="stor">DISK <b>${m.storage>=1e11?Math.round(m.storage/1e9):(m.storage/1e9).toFixed(1)}</b> GB</span>`);
    parts.push(`<span title="System memory in use">RAM <b>${gb(m.ram_used)}</b>/${gb(m.ram_total)} GB</span>`);
-   if(m.llm.loaded)parts.push(`<button class="g sm unl" id="unl" title="Unload ${esc(m.llm.name||"the language model")} (loaded by Clipsurge)">${withIco("power","Unload model",12)}</button>`);
+   if(m.llm.loaded){const raw=(m.llm.name||"").split(/[\\/]/).pop().replace(/\.gguf$/i,"")||"language model",short=raw.replace(/[-_]?(instruct|chat|it)(?=[-_.]|$)/ig,"").replace(/[-_]gguf$/i,""),nm=short.length>22?short.slice(0,21)+"…":short;
+    parts.push(`<span class="mdl" title="${esc(raw)}${m.llm.ready?"":" (loading)"}">MODEL <b>${esc(nm)}</b>${m.llm.ready?"":" ..."}</span>`);
+    parts.push(`<button class="g sm unl" id="unl" title="Unload ${esc(raw)} (loaded by Clipsurge)">${withIco("power","Unload",12)}</button>`)}
    const h=parts.join("");if(mem.dataset.h!==h){mem.dataset.h=h;mem.innerHTML=h;setTimeout(fit,0);const u=document.getElementById("unl");if(u)u.onclick=unload;const s=document.getElementById("stor");if(s)s.onclick=()=>post("/api/open-folder",{})}
    mem.hidden=false}
   catch(e){mem.hidden=true}
