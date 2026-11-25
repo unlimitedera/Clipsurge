@@ -74,7 +74,8 @@ function renderSettings(){
   <p class="mu">Needs an internet connection. If it fails, the clip is made without narration. These are the defaults: each video (on its page) and each clip (in the editor) can override them.</p></div>
  <div class="card sec" data-cat="acct" data-sub="yt" data-t="YouTube account uploads"><h3>YouTube</h3><div class="three">
   <label>YouTube uploads are<select id="y_privacy">${opt(S.youtube.privacy,[["private","Private"],["unlisted","Unlisted"],["public","Public"]])}</select></label>
-  <div></div><div></div></div>
+  <label class="chk"><input type="checkbox" id="y_smart" ${S.youtube.smart_tags!==false?"checked":""}><span>Suggest tags when uploading <small class="mu">Opens a window with tags from your best videos and from trending videos on the topic. You can edit them.</small></span></label>
+  <label class="chk"><input type="checkbox" id="y_learn" ${S.youtube.learn!==false?"checked":""}><span>Learn from my results <small class="mu">Uses the views and likes of your uploads to guide which moments it picks and how titles are written.</small></span></label></div>
   <div class="ytbox">
    <div class="yts ${YT.client_file?"ok":""}"><b>1</b><div><div>Get your Google key <span class="mu small">once, about 5 minutes</span></div><button class="g sm" onclick="ytGuide()">Show me how</button></div></div>
    <div class="yts ${YT.client_file?"ok":""}"><b>2</b><div><div>Add the key</div>
@@ -201,7 +202,7 @@ async function saveSettings(){
   transcribe:{model:v("t_model"),language:v("t_language")||"auto",device:v("t_device")},
   video:{encoder:v("v_encoder"),lufs:+v("v_lufs"),caption_size:+v("v_caption_size"),max_height:+v("v_max_height")},
   narration:{enabled:c("n_enabled"),title_caption:c("n_caption"),voice:v("n_voice"),volume:+v("n_volume")||1},
-  youtube:{privacy:v("y_privacy")},obs:{host:v("o_host"),port:+v("o_port"),password:v("o_password")}};
+  youtube:{privacy:v("y_privacy"),smart_tags:c("y_smart"),learn:c("y_learn")},obs:{host:v("o_host"),port:+v("o_port"),password:v("o_password")}};
  const r=await fetch("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
  const m=document.getElementById("savemsg");
  if(r.ok){const j=await r.json();S=j.settings;m.textContent="Saved";applyDefaults();refreshStatus&&refreshStatus();setTimeout(()=>m.textContent="",2500)}else m.textContent="Could not save"}

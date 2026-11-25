@@ -6,12 +6,13 @@ const jtime=j=>{try{const s=j.id;return Date.UTC(+s.slice(0,4),+s.slice(4,6)-1,+
 
 async function overviewView(){
  view="overview";
- app().innerHTML=`<div class="phead"><div><h1>Overview</h1><p class="mu">Everything Clipsurge has done so far, across all projects.</p></div><button data-p>${withIco("grid","Projects")}</button></div><div id="ovbody"><div class="empty big">Loading...</div></div>`;
+ app().innerHTML=`<div class="phead"><div><h1>Overview</h1><p class="mu">Everything Clipsurge has done so far, across all projects.</p></div><button data-p>${withIco("grid","Projects")}</button></div><div id="perf"></div><div id="ovbody"><div class="empty big">Loading...</div></div>`;
  app().querySelector("[data-p]").onclick=()=>nav("/projects");
  poll(async()=>{
   if(view!="overview")return;
   const ps=await jget("/api/projects");
   const full=await Promise.all(ps.map(p=>jget("/api/projects/"+p.id).catch(()=>({...p,jobs:[]}))));
+  perfRefresh();
   const html=ovHtml(full);const b=$("ovbody");
   if(b&&b.dataset.h!==html){b.dataset.h=html;b.innerHTML=html;
    b.querySelectorAll("img[data-hide]").forEach(i=>i.onerror=()=>i.style.display="none")}
