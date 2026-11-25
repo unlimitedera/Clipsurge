@@ -669,7 +669,14 @@ def files(jid: str, path: str):
     if JOBS.resolve() not in p.parents or not p.is_file(): raise HTTPException(404)
     return FileResponse(p)   # supports range requests, so seeking/playback is stable
 
-app.mount("/", StaticFiles(directory=WEB, html=True), name="web")
+class _Fresh(StaticFiles):
+    """The app's own pages are always re-checked, so an update shows up without a hard refresh."""
+    async def get_response(self, path, scope):
+        r = await super().get_response(path, scope)
+        r.headers["Cache-Control"] = "no-cache"
+        return r
+
+app.mount("/", _Fresh(directory=WEB, html=True), name="web")
 
 if __name__ == "__main__":
     import uvicorn
