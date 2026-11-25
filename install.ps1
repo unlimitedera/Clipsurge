@@ -1,16 +1,16 @@
 # Copyright (c) 2026 unlimitedera. All Rights Reserved.
 # Clipsurge installer for Windows 10/11.
-#   irm https://raw.githubusercontent.com/unlimitedera/Clipsurge/main/install.ps1 | iex
+#   irm unlimitedera.github.io/clipsurge | iex
 # With options:
-#   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/unlimitedera/Clipsurge/main/install.ps1))) -Dir D:\Clipsurge -Cpu
+#   & ([scriptblock]::Create((irm unlimitedera.github.io/clipsurge))) -Dir D:\Clipsurge -Cpu
 # Options: -Dir <folder>  -Cpu  -NoLaunch  -NoShortcut  -Branch <name>
 function Install-Clipsurge {
 param(
   [string]$Dir = $(if ($env:CLIPSURGE_DIR) { $env:CLIPSURGE_DIR } else { Join-Path $env:LOCALAPPDATA "Clipsurge" }),
   [string]$Branch = "main",
   [switch]$Cpu = [bool]$env:CLIPSURGE_CPU,
-  [switch]$NoLaunch,
-  [switch]$NoShortcut
+  [switch]$NoLaunch = [bool]$env:CLIPSURGE_NOLAUNCH,
+  [switch]$NoShortcut = [bool]$env:CLIPSURGE_NOSHORTCUT
 )
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"

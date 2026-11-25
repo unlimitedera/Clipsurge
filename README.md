@@ -24,7 +24,7 @@
 Open **PowerShell** and run:
 
 ```powershell
-irm https://raw.githubusercontent.com/unlimitedera/Clipsurge/main/install.ps1 | iex
+irm unlimitedera.github.io/clipsurge | iex
 ```
 
 It installs Python 3.11 and ffmpeg if you do not have them, sets everything up in `%LOCALAPPDATA%\Clipsurge`, adds a Desktop shortcut, and opens Clipsurge in your browser at `http://127.0.0.1:8420`. Run the same command again any time to update. Your projects, videos and keys are kept.

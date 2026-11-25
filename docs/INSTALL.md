@@ -10,7 +10,7 @@ Clipsurge runs on Windows 10 and 11. The installer is a single PowerShell script
 2. Paste this and press Enter:
 
 ```powershell
-irm https://raw.githubusercontent.com/unlimitedera/Clipsurge/main/install.ps1 | iex
+irm unlimitedera.github.io/clipsurge | iex
 ```
 
 3. Wait. The first install takes 5 to 15 minutes, mostly downloads. You will see green `==>` lines for each step.
@@ -35,7 +35,7 @@ That is all. Next time, use the **Clipsurge** shortcut on your Desktop or Start 
 Add options after the command:
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/unlimitedera/Clipsurge/main/install.ps1))) -Dir D:\Clipsurge -Cpu
+& ([scriptblock]::Create((irm unlimitedera.github.io/clipsurge))) -Dir D:\Clipsurge -Cpu
 ```
 
 | Option | Meaning |
@@ -46,7 +46,13 @@ Add options after the command:
 | `-NoShortcut` | Do not create shortcuts. |
 | `-Branch <name>` | Install a different branch. |
 
-You can also set them as environment variables before the one-line command: `$env:CLIPSURGE_DIR = "D:\Clipsurge"` and `$env:CLIPSURGE_CPU = "1"`.
+You can also set them as environment variables before the one-line command: `$env:CLIPSURGE_DIR = "D:\Clipsurge"` and `$env:CLIPSURGE_CPU = "1"`. The same works for `CLIPSURGE_NOLAUNCH` and `CLIPSURGE_NOSHORTCUT`.
+
+If the short link is ever blocked on your network, the long form does the same thing:
+
+```powershell
+irm https://raw.githubusercontent.com/unlimitedera/Clipsurge/main/install.ps1 | iex
+```
 
 If you saved the script as a file and PowerShell says scripts are disabled, run `powershell -ExecutionPolicy Bypass -File .\install.ps1`. The one-line command does not need this.
 
