@@ -51,36 +51,72 @@ function perfWire(el){
  const ti=$("trTopic");if(ti)ti.onkeydown=e=>{if(e.key=="Enter")go(false)};
  el.querySelectorAll("[data-tag]").forEach(b=>b.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText("#"+b.dataset.tag.replace(/\s+/g,""));toast("Copied #"+b.dataset.tag.replace(/\s+/g,""))})}
 
-/* ---------------------------------------------------------------- Upload dialog with smart tags */
-async function uploadDialog(jid,cid){
+/* ---------------------------------------------------------------- Upload dialog: platform, rules, risk, smart tags */
+async function uploadDialog(jid,cid,platform){
  const clip=((await jget("/api/jobs/"+jid)).clips||[]).find(c=>String(c.id)===String(cid))||{};
- const S=(await jget("/api/settings")).settings.youtube||{};
- let tags=[];let edited=false;const gone=new Set();
- const m=modal(`<h3>Upload to YouTube</h3>
-  <label>Title<input id="uTitle" maxlength="95" value="${esc(clip.title||"")}"></label>
-  <div class="two" style="margin-top:8px"><label>Visibility<select id="uPriv">${[["private","Private"],["unlisted","Unlisted"],["public","Public"]].map(([v,l])=>`<option value="${v}" ${S.privacy==v?"selected":""}>${l}</option>`).join("")}</select></label><div></div></div>
+ const [set,PL]=await Promise.all([jget("/api/settings"),jget("/api/platforms")]);
+ const S=set.settings.youtube||{};
+ let plat=platform||"youtube";
+ let tags=[];let edited=false;const gone=new Set();let risk=null;let loadId=0;
+ const conn=p=>p=="tiktok"?PL.tiktok.connected:PL.youtube.connected;
+ const m=modal(`<h3>Upload</h3>
+  <div class="ptabs" id="uPlat">${[["youtube","YouTube"],["tiktok","TikTok"]].map(([k,n])=>`<button class="ptab" data-p="${k}">${n}<small></small></button>`).join("")}</div>
+  <div id="uConn" class="note2 hide"></div>
+  <label style="margin-top:10px">Title<input id="uTitle" maxlength="95" value="${esc(clip.title||"")}"></label>
+  <div class="two" style="margin-top:8px"><label>Visibility<select id="uPriv">${[["private","Private"],["unlisted","Unlisted"],["public","Public"]].map(([v,l])=>`<option value="${v}" ${S.privacy==v?"selected":""}>${l}</option>`).join("")}</select></label><div id="uPrivNote" class="mu small" style="align-self:end"></div></div>
   <div style="margin-top:12px"><div class="mu small">Tags <span id="uSt"></span></div><div class="chips2 tagedit" id="uTags"></div>
    <input id="uAdd" placeholder="Add a tag and press Enter" style="margin-top:8px"></div>
   <div class="legend small mu"><span><u class="dd dd-clip"></u>from this clip</span><span><u class="dd dd-yours"></u>from your best videos</span><span><u class="dd dd-trending"></u>trending on this topic</span><span><u class="dd dd-search"></u>people also search</span></div>
-  <label style="margin-top:10px">Description<textarea id="uDesc" rows="3"></textarea></label>
+  <label style="margin-top:10px"><span id="uDescL">Description</span><textarea id="uDesc" rows="3"></textarea></label>
+  <div id="uRisk"></div>
   <p class="mu small" style="margin:6px 0 0">Only tags that fit the video are suggested. Remove any you do not want. Nothing can guarantee views.</p>
   <div class="mfoot"><button class="g" data-x>Cancel</button><button data-go>Upload</button></div>`,{wide:true});
  const B=m.box,q=s=>B.querySelector(s);
- const desc=()=>{if(edited)return;const hs=tags.slice(0,3).map(t=>"#"+t.tag.replace(/\s+/g,""));q("#uDesc").value=q("#uTitle").value+(hs.length?"\n\n"+hs.join(" "):"")};
+ const NAME={youtube:"YouTube",tiktok:"TikTok"};
+ const desc=()=>{if(edited)return;const n=plat=="tiktok"?5:3;const hs=tags.slice(0,n).map(t=>"#"+t.tag.replace(/\s+/g,""));q("#uDesc").value=q("#uTitle").value+(hs.length?(plat=="tiktok"?" ":"\n\n")+hs.join(" "):"")};
  const draw=()=>{q("#uTags").innerHTML=tags.map((t,i)=>`<span class="tg"><u class="dd dd-${t.src}"></u>${esc(t.tag)}<button data-rm="${i}" title="Remove">×</button></span>`).join("")||`<span class="mu small">No tags</span>`;
   q("#uTags").querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{gone.add(tags[+b.dataset.rm].tag);tags.splice(+b.dataset.rm,1);draw();desc()});desc()};
  q("#uDesc").oninput=()=>edited=true;q("#uTitle").oninput=desc;
  q("#uAdd").onkeydown=e=>{if(e.key=="Enter"||e.key==","){e.preventDefault();const v=e.target.value.trim().replace(/^#/,"").toLowerCase();if(v&&!tags.some(t=>t.tag==v)){tags.push({tag:v,src:"clip",added:true});gone.delete(v)}e.target.value="";draw()}};
- draw();
- if(S.smart_tags!==false){
+ const ready=()=>{const go=q("[data-go]");let ok=conn(plat);
+  const a=q("#uAck"),r=q("#uRiskOk");if(a&&!a.checked)ok=false;if(r&&!r.checked)ok=false;go.disabled=!ok;go.textContent="Upload to "+NAME[plat]};
+ async function drawRisk(){
+  try{risk=await jget(`/api/platforms/${plat}/risk`)}catch(e){risk={level:"none",messages:[]}}
+  const P=PL.platforms[plat];
+  const lvl=risk.level;
+  let h="";
+  if(risk.needs_ack)h+=`<div class="rbox"><b>Rules for ${NAME[plat]}</b><ul class="small">${P.rules.slice(0,4).map(x=>`<li>${esc(x)}</li>`).join("")}</ul><a href="#" data-rules class="small">Read all the rules, limits and links</a>
+    <label class="chk" style="margin-top:8px"><input type="checkbox" id="uAck"><span>I have read the ${NAME[plat]} rules and I am responsible for what I post <small class="mu">You only confirm this once.</small></span></label></div>`;
+  if(lvl=="warn"||lvl=="high")h+=`<div class="rbox ${lvl}"><b>${lvl=="high"?"Slow down":"Heads up"}</b>${risk.messages.filter(x=>!/First time/.test(x)).map(x=>`<p class="small" style="margin:6px 0">${esc(x)}</p>`).join("")}
+    <label class="chk"><input type="checkbox" id="uRiskOk"><span>I understand and proceed at my own risk</span></label></div>`;
+  q("#uRisk").innerHTML=h;
+  q("#uRisk").querySelectorAll("input").forEach(x=>x.onchange=ready);
+  const lk=q("#uRisk [data-rules]");if(lk)lk.onclick=e=>{e.preventDefault();platformRules(plat)};
+  ready()}
+ async function loadTags(){
+  const my=++loadId;
+  if(S.smart_tags===false){q("#uSt").textContent="";return}
   q("#uSt").textContent="· looking up trending tags...";
-  const load=async()=>{for(let k=0;k<50;k++){let r;try{r=await jget(`/api/jobs/${jid}/clips/${cid}/tags`)}catch(e){break}
-    if(!document.body.contains(B))return;
-    const mine=tags.filter(t=>t.added);tags=[...r.tags.filter(t=>!gone.has(t.tag)),...mine.filter(t=>!r.tags.some(x=>x.tag==t.tag))];draw();
-    if(!r.pending){q("#uSt").textContent=r.tags.length?"· "+r.tags.length+" suggested":"";return}await new Promise(x=>setTimeout(x,1500))}
-   if(document.body.contains(B))q("#uSt").textContent=""};load()}
+  for(let k=0;k<50;k++){let r;try{r=await jget(`/api/jobs/${jid}/clips/${cid}/tags`)}catch(e){break}
+   if(!document.body.contains(B)||my!==loadId)return;
+   const mine=tags.filter(t=>t.added);tags=[...r.tags.filter(t=>!gone.has(t.tag)),...mine.filter(t=>!r.tags.some(x=>x.tag==t.tag))];draw();
+   if(!r.pending){q("#uSt").textContent=r.tags.length?"· "+r.tags.length+" suggested":"";return}await new Promise(x=>setTimeout(x,1500))}
+  if(document.body.contains(B)&&my===loadId)q("#uSt").textContent=""}
+ function setPlat(p){
+  plat=p;edited=false;
+  q("#uPlat").querySelectorAll(".ptab").forEach(b=>{b.classList.toggle("on",b.dataset.p==p);b.querySelector("small").textContent=conn(b.dataset.p)?"":" (not connected)"});
+  const c=q("#uConn");c.classList.toggle("hide",conn(p));
+  c.innerHTML=conn(p)?"":`${NAME[p]} is not connected. <button class="sm" data-set>Open Settings</button>`;
+  const cb=c.querySelector("[data-set]");if(cb)cb.onclick=()=>{m.close();nav("/settings");setTimeout(()=>window.setNav&&setNav("acct",p=="tiktok"?"tt":"yt"),400)};
+  q("#uDescL").textContent=p=="tiktok"?"Caption":"Description";
+  q("#uPrivNote").textContent=p=="tiktok"?"TikTok apps that have not passed TikTok's audit can only post privately.":"";
+  q("#uTitle").maxLength=p=="tiktok"?150:95;
+  desc();drawRisk()}
+ q("#uPlat").querySelectorAll(".ptab").forEach(b=>b.onclick=()=>setPlat(b.dataset.p));
  q("[data-x]").onclick=()=>m.close();
  q("[data-go]").onclick=async()=>{const go=q("[data-go]");go.disabled=true;
-  const r=await post(`/api/jobs/${jid}/clips/${cid}/upload`,{title:q("#uTitle").value,privacy:q("#uPriv").value,tags:tags.map(t=>t.tag),description:q("#uDesc").value});
-  if(!r.ok){toast((await r.json()).detail||"Upload failed","err");go.disabled=false;return}
-  m.close();toast("Upload started. Progress is in the box at the bottom right.");if(window.upKick)upKick()}}
+  const r=await post(`/api/jobs/${jid}/clips/${cid}/upload`,{platform:plat,title:q("#uTitle").value,privacy:q("#uPriv").value,tags:tags.map(t=>t.tag),description:q("#uDesc").value,
+   ack_rules:!!(q("#uAck")&&q("#uAck").checked),risk_ok:!!(q("#uRiskOk")&&q("#uRiskOk").checked)});
+  if(!r.ok){const e=await r.json().catch(()=>({}));if(r.status==409){toast("Please confirm the notes below first","err");await drawRisk()}else toast(typeof e.detail=="string"?e.detail:"Upload failed","err");go.disabled=false;return}
+  m.close();toast("Upload started. Progress is in the box at the bottom right.");if(window.upKick)upKick()};
+ draw();setPlat(plat);loadTags()}

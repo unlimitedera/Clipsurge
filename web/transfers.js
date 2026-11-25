@@ -33,12 +33,12 @@ function drawTray(){
   const st=u.state=="done"?`<a href="${u.url}" target="_blank" rel="noopener" class="ulink">${esc(u.url.replace("https://",""))}</a>`:u.state=="error"?`<span class="err small">${esc(u.error||"Failed")}</span>`:`<span class="mu small">${u.state=="queued"?"Waiting to start":"Uploading to YouTube"} · ${sz((u.size||0)*(u.progress||0))} of ${sz(u.size||0)}</span>`;
   return `<div class="uit ${u.state}" data-u="${u.id}"><div class="row sp"><span class="utt">${esc(u.title)}</span><span class="mono small">${u.state=="done"?"Done":u.state=="error"?"Failed":pct+"%"}</span></div>
    <div class="bar sm ub"><b style="width:${u.state=="done"?100:pct}%"></b></div>
-   <div class="row sp">${st}<span class="uact">${u.state=="done"?`<button class="uib" data-copy="${esc(u.url)}">Copy link</button>`:""}${u.state=="error"?`<button class="uib" data-retry="${u.jid}|${u.cid}">Retry</button>`:""}${active(u)?"":`<button class="uib" data-dis="${u.id}" title="Remove from this box">✕</button>`}</span></div></div>`}).join("");
+   <div class="row sp">${st}<span class="uact">${u.state=="done"?`<button class="uib" data-copy="${esc(u.url)}">Copy link</button>`:""}${u.state=="error"?`<button class="uib" data-retry="${u.jid}|${u.cid}|${u.platform||"youtube"}">Retry</button>`:""}${active(u)?"":`<button class="uib" data-dis="${u.id}" title="Remove from this box">✕</button>`}</span></div></div>`}).join("");
  const list=tray.querySelector(".ulist");
  morphInto(list,html);
  list.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{navigator.clipboard.writeText(b.dataset.copy);b.textContent="Copied"});
  list.querySelectorAll("[data-dis]").forEach(b=>b.onclick=()=>{const d=upDis();d.add(b.dataset.dis);upDisSave(d);drawTray()});
- list.querySelectorAll("[data-retry]").forEach(b=>b.onclick=async()=>{const [j,c]=b.dataset.retry.split("|");await post(`/api/jobs/${j}/clips/${c}/upload`);upKick()});
+ list.querySelectorAll("[data-retry]").forEach(b=>b.onclick=()=>{const [j,c,p]=b.dataset.retry.split("|");uploadDialog(j,c,p)});
  requestAnimationFrame(()=>document.documentElement.style.setProperty("--trayh",(tray.offsetHeight+30)+"px"))}
 
 /* ---------- Transfers page ---------- */
@@ -57,12 +57,12 @@ function drawTransfersUploads(){
  const h=UP.length?UP.map(u=>{const pct=Math.round((u.progress||0)*100);
   return `<div class="trow ${u.state}"><div class="grow"><div class="utt">${esc(u.title)}</div><div class="mu small">${when(u.t0)} · ${u.privacy||""} · ${sz(u.size||0)}</div>
    ${active(u)?`<div class="bar sm ub"><b style="width:${pct}%"></b></div>`:""}${u.state=="error"?`<div class="err small">${esc(u.error||"")}</div>`:""}</div>
-   <div class="trt">${u.state=="done"?`<a href="${u.url}" target="_blank" rel="noopener" class="btn g sm">Open</a><button class="g sm" data-copy="${esc(u.url)}">Copy link</button>`:u.state=="error"?`<button class="g sm" data-retry="${u.jid}|${u.cid}">Retry</button>`:`<b class="mono">${pct}%</b>`}
+   <div class="trt">${u.state=="done"?`<a href="${u.url}" target="_blank" rel="noopener" class="btn g sm">Open</a><button class="g sm" data-copy="${esc(u.url)}">Copy link</button>`:u.state=="error"?`<button class="g sm" data-retry="${u.jid}|${u.cid}|${u.platform||"youtube"}">Retry</button>`:`<b class="mono">${pct}%</b>`}
    ${active(u)?"":`<button class="g sm" data-rm="${u.id}" title="Remove from history">✕</button>`}</div></div>`}).join(""):`<p class="mu small" style="margin-top:12px">Nothing uploaded yet. Use Upload to YouTube on a finished clip.</p>`;
  morphInto(el,h);
  el.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{navigator.clipboard.writeText(b.dataset.copy);b.textContent="Copied"});
  el.querySelectorAll("[data-rm]").forEach(b=>b.onclick=async()=>{await api("/api/uploads?uid="+b.dataset.rm,{method:"DELETE"});upKick()});
- el.querySelectorAll("[data-retry]").forEach(b=>b.onclick=async()=>{const [j,c]=b.dataset.retry.split("|");await post(`/api/jobs/${j}/clips/${c}/upload`);upKick()})}
+ el.querySelectorAll("[data-retry]").forEach(b=>b.onclick=()=>{const [j,c,p]=b.dataset.retry.split("|");uploadDialog(j,c,p)})}
 async function transfersLoad(){
  let d;try{d=await jget("/api/downloads")}catch(e){return}
  const c=$("dlClips"),v=$("dlVids");if(!c)return;

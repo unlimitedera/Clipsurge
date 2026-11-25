@@ -3,7 +3,7 @@ let S=null,PRESETS={},MCPCFG={},YT={};
 const SCATS=[{id:"ai",name:"AI and agents",subs:[["local","Local models"],["conn","Connections"],["mcp","Agent control (MCP)"]]},
  {id:"clip",name:"Clipping",subs:[["defaults","Defaults for new clips"],["features","Features"],["censor","Bad language"]]},
  {id:"media",name:"Speech and video",subs:[["speech","Speech"],["video","Video"],["narration","Narration"]]},
- {id:"acct",name:"Accounts",subs:[["yt","YouTube"],["obs","OBS"]]},
+ {id:"acct",name:"Accounts",subs:[["yt","YouTube"],["tt","TikTok"],["obs","OBS"],["rules","Platform rules"]]},
  {id:"about",name:"About",subs:[["about","About Clipsurge"],["license","License"],["terms","Terms of use"]]}];
 const CREDITS=[
  ["Download and media",[["yt-dlp","Downloads videos and chat replay","Unlicense","https://github.com/yt-dlp/yt-dlp"],["FFmpeg","Cutting, cropping, captions, encoding, audio","LGPL / GPL","https://ffmpeg.org"],["ffmpeg-normalize","Loudness balancing","MIT","https://github.com/slhck/ffmpeg-normalize"],["OpenTimelineIO","Timeline export (.otio)","Apache-2.0","https://github.com/AcademySoftwareFoundation/OpenTimelineIO"]]],
@@ -89,6 +89,18 @@ function renderSettings(){
    <div class="yts ${YT.connected?"ok":""}"><b>3</b><div><div>Sign in with Google <span class="mu small">${YT.connected?"Connected":"a Google page opens, you approve once"}</span></div>
     ${YT.connected?`<button class="g sm" onclick="ytOut()">Disconnect</button>`:`<button class="sm" ${YT.client_file?"":"disabled"} onclick="ytConnect()">Sign in</button>`}<span id="ytmsg" class="res mu"></span></div></div>
   </div></div>
+ <div class="card sec" data-cat="acct" data-sub="tt" data-t="TikTok account upload client key developer app"><h3>TikTok</h3>
+  <p class="mu">Post clips to TikTok with TikTok's official Content Posting API. You need your own free TikTok developer app. About 10 minutes.</p>
+  <ol class="guide small">
+   <li>Log in at <a href="https://developers.tiktok.com/" target="_blank" rel="noopener">developers.tiktok.com</a>, open <b>Manage apps</b> and press <b>Connect an app</b>. Pick the type <b>Desktop</b>.</li>
+   <li>Add the products <b>Login Kit</b> and <b>Content Posting API</b>. In the Content Posting API settings turn on <b>Direct Post</b>.</li>
+   <li>In Login Kit add this redirect address: <code id="ttRedir">http://127.0.0.1:*/callback/</code> <button class="g sm" onclick="navigator.clipboard.writeText('http://127.0.0.1:*/callback/');toast('Copied')">Copy</button></li>
+   <li>Copy the <b>Client key</b> and <b>Client secret</b> from the app page and paste them below. They stay on this computer.</li>
+   <li>Press <b>Connect TikTok</b> and sign in to the TikTok account you want to post to.</li>
+  </ol>
+  <div class="note2 small"><b>Good to know.</b> Until TikTok audits your app, everything posts as <b>private</b> (only you can see it), the TikTok account must be set to private, and no more than 5 accounts a day can post through one app. After posting, you can make a video public inside TikTok. To lift the limit, apply for the audit on TikTok's developer site (it checks that your app follows TikTok's rules). See <a href="#" onclick="platformRules('tiktok');return false">TikTok rules and limits</a>.</div>
+  <div id="ttBox" style="margin-top:12px"></div></div>
+ <div class="card sec" data-cat="acct" data-sub="rules" data-t="Platform rules guidelines terms of use copyright youtube tiktok twitch risk limits bot spam"><h3>Platform rules and risk</h3><div id="platRules"><p class="mu">Loading...</p></div></div>
  <div class="card sec" data-cat="acct" data-sub="obs" data-t="OBS recording account"><h3>OBS</h3><div class="three">
   <label>OBS host<input type="text" id="o_host" value="${E(S.obs.host)}"></label>
   <label>OBS port<input type="number" id="o_port" value="${S.obs.port}"></label>
@@ -113,7 +125,7 @@ function renderSettings(){
  <div id="setempty" class="mu sx-hide">No settings match your search.</div>
  <div class="savebar"><span id="savemsg" class="mu"></span><button onclick="saveSettings()">Save settings</button></div></div></div>`;
  document.getElementById("setq").oninput=e=>{SN.q=e.target.value;setView()};
- setView();renderModelHub();ytWire();settingsTitle();
+ setView();renderModelHub();ytWire();settingsTitle();if(window.platFill)platFill();
  document.querySelectorAll("input.glrange").forEach(r=>{const f=()=>{r.style.setProperty("--p",((r.value-r.min)/(r.max-r.min)*100)+"%");const v=document.getElementById(r.id+"_v");if(v)v.textContent=Math.round(r.value*100)+"%"};r.addEventListener("input",f);f()})}
 
 function setView(){

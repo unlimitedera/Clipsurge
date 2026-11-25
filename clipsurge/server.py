@@ -6,7 +6,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from . import insights, updater, transfers, library, models, jobs, llm, youtube, extras, settings, projects, fsbrowse, analyze
+from . import platforms, tiktok, insights, updater, transfers, library, models, jobs, llm, youtube, extras, settings, projects, fsbrowse, analyze
 from .config import JOBS, WEB, DATA, ROOT
 
 app = FastAPI(title="Clipsurge")
@@ -572,10 +572,51 @@ def yt_connect():
     return youtube.state()
 
 class UploadBody(BaseModel):
+    platform: str | None = None
+    risk_ok: bool = False        # the user confirmed "I understand and proceed at my own risk"
+    ack_rules: bool = False      # the user confirmed they read the platform rules
     title: str | None = None
     tags: list[str] | None = None
     description: str | None = None
     privacy: str | None = None
+
+@app.get("/api/platforms")
+def platforms_info():
+    return {**platforms.public(), "tiktok": tiktok.state(), "youtube": youtube.state()}
+
+@app.get("/api/platforms/{p}/risk")
+def platform_risk(p: str):
+    if p not in platforms.PLATFORMS: raise HTTPException(404, "unknown platform")
+    return platforms.risk(p)
+
+@app.post("/api/platforms/{p}/ack")
+def platform_ack(p: str):
+    try: platforms.acknowledge(p)
+    except KeyError: raise HTTPException(404, "unknown platform")
+    return platforms.risk(p)
+
+class TikTokClient(BaseModel):
+    client_key: str = ""
+    client_secret: str = ""
+
+@app.get("/api/tiktok")
+def tt_state(): return tiktok.state()
+
+@app.post("/api/tiktok/client")
+def tt_client(b: TikTokClient):
+    try: tiktok.save_client(b.client_key, b.client_secret)
+    except ValueError as e: raise HTTPException(400, str(e))
+    return tiktok.state()
+
+@app.post("/api/tiktok/connect")
+def tt_connect():
+    try: tiktok.connect()
+    except Exception as e: raise HTTPException(400, f"{e}")
+    return tiktok.state()
+
+@app.post("/api/tiktok/disconnect")
+def tt_disconnect(forget_client: bool = False):
+    tiktok.disconnect(forget_client); return tiktok.state()
 
 @app.get("/api/insights")
 def insights_report(refresh: bool = False):
@@ -596,11 +637,19 @@ def clip_tags(jid: str, cid: int):
 @app.post("/api/jobs/{jid}/clips/{cid}/upload")
 def upload_clip(jid: str, cid: int, privacy: str = "", body: UploadBody | None = None):
     body = body or UploadBody()
+    platform = body.platform or "youtube"
+    if platform not in ("youtube", "tiktok"): raise HTTPException(400, "unknown platform")
     privacy = body.privacy or privacy or settings.get()["youtube"]["privacy"]
     c = _clip(jobs.load(jid), cid)
     if not c.get("file"): raise HTTPException(404, "render the clip first")
-    if any(u["jid"] == jid and u["cid"] == cid and u["state"] in ("queued", "uploading") for u in transfers.list_uploads()):
+    if any(u["jid"] == jid and u["cid"] == cid and u["state"] in ("queued", "uploading") and (u.get("platform") or "youtube") == platform for u in transfers.list_uploads()):
         raise HTTPException(400, "This clip is already uploading")
+    if platform == "tiktok" and not tiktok.state()["connected"]:
+        raise HTTPException(400, "TikTok is not connected. Sign in under Settings > Accounts.")
+    rk = platforms.risk(platform)                       # rules and risk: never post past a warning without the user saying so
+    if rk["needs_ack"] and not body.ack_rules: raise HTTPException(409, {"need": "ack", "risk": rk})
+    if rk["level"] in ("warn", "high") and not body.risk_ok: raise HTTPException(409, {"need": "risk", "risk": rk})
+    if body.ack_rules: platforms.acknowledge(platform)
     tags = body.tags if body.tags is not None else c.get("tags")
     title = (body.title or c["title"] or "Clip").strip()
     desc = body.description
@@ -612,7 +661,7 @@ def upload_clip(jid: str, cid: int, privacy: str = "", body: UploadBody | None =
             "layout": c.get("layout_used"), "mode": st.get("mode"), "tags": [t.lstrip("#") for t in (tags or [])],
             "project": j.get("project"), "source": j.get("title"), "captions": st.get("captions"),
             "narration": bool(((c.get("edit") or {}).get("narration") or st.get("narration") or {}).get("enabled"))}
-    return transfers.start_upload(jid, cid, title, c["file"], privacy, tags, desc, meta)
+    return transfers.start_upload(jid, cid, title, c["file"], privacy, tags, desc, meta, platform)
 
 @app.get("/api/uploads")
 def uploads_list(): return transfers.list_uploads()

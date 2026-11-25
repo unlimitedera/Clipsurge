@@ -19,8 +19,9 @@
   else{st="Up to date";cls="ok"}
   const v=info&&info.current?info.current:"";
   foot.innerHTML=`<span class="fc">© 2026 unlimitedera. All Rights Reserved.</span>
-   <span class="fl"><a href="${GH}" target="_blank" rel="noopener">GitHub</a><a href="${GH}/blob/main/LICENSE" target="_blank" rel="noopener">License</a><a href="${GH}/blob/main/TERMS.md" target="_blank" rel="noopener">Terms</a><a href="#" data-cr>Credits</a></span>
+   <span class="fl"><a href="${GH}" target="_blank" rel="noopener">GitHub</a><a href="${GH}/blob/main/LICENSE" target="_blank" rel="noopener">License</a><a href="${GH}/blob/main/TERMS.md" target="_blank" rel="noopener">Terms</a><a href="#" data-cr>Credits</a><a href="#" data-pr>Platform rules</a></span>
    <button class="fv ${cls}" id="footv" title="${esc(info&&info.current_date?"Installed "+agoTxt(info.current_date)+". ":"")}Click to check for updates"><i></i><span>Clipsurge${v?" <b>"+esc(v)+"</b>":""} · ${st}</span></button>`;
+  foot.querySelector("[data-pr]").onclick=e=>{e.preventDefault();if(window.platformRules)platformRules()};
   foot.querySelector("[data-cr]").onclick=e=>{e.preventDefault();if(window.creditsDialog)creditsDialog()};
   foot.querySelector("#footv").onclick=()=>{footDraw("checking");updateDialog(true)}}
  const agoTxt=d=>{const s=(Date.now()-new Date(d))/1000;return s<3600?Math.max(1,Math.round(s/60))+" min ago":s<86400?Math.round(s/3600)+" h ago":Math.round(s/86400)+" days ago"};

@@ -138,6 +138,28 @@ If Google says "Access blocked: error 403 access_denied", add your Google email 
 
 ![Upload box](screenshots/17-upload-tray.png)
 
+## 11b. Upload to TikTok
+
+One time setup, in **Settings > Accounts > TikTok** (about 10 minutes, free):
+
+1. Log in at developers.tiktok.com, open **Manage apps** and create an app of type **Desktop**.
+2. Add the products **Login Kit** and **Content Posting API**, and turn on **Direct Post**.
+3. In Login Kit add the redirect address `http://127.0.0.1:*/callback/` (there is a Copy button).
+4. Paste the **Client key** and **Client secret** in Clipsurge and press **Save key**.
+5. Press **Connect TikTok** and sign in.
+
+Then press **Upload** on any clip and pick **TikTok**. The caption is the title plus up to 5 hashtags.
+
+Important: until TikTok audits your app, every post is **private** (only you see it), the TikTok account must be private, and at most 5 accounts a day can post through one app. You can make a post public inside TikTok afterwards, or apply for TikTok's audit to lift the limit. TikTok allows about 15 posts per account per day.
+
+## 11c. Platform rules and risk warnings
+
+**Settings > Accounts > Platform rules** (also the *Platform rules* link in the footer) lists, for YouTube, TikTok and the sites you download from: the terms and copyright rules, the limits, and the official links. The same text is in [PLATFORMS.md](PLATFORMS.md).
+
+- The first time you post to a platform, Clipsurge shows its rules and asks you to confirm once.
+- Before every post it counts your posts to that platform in the last 24 hours. After **6 on YouTube** or **5 on TikTok** it shows a warning, and you must tick *I understand and proceed at my own risk*. After **15 on YouTube** or **12 on TikTok** the warning is stronger.
+- Those numbers are Clipsurge's own cautious defaults. YouTube does not publish what counts as automated or spam behavior, so nobody can tell you the exact line. Space posts out and make each clip different.
+
 ## 12. Transfers and overview
 
 - **Transfers** tab: every upload (with Open and Copy link), the clips you downloaded, and the videos Clipsurge fetched from links.

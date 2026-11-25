@@ -28,28 +28,33 @@ def _set(u, **kw):
 def list_uploads():
     with _lock: return [dict(u) for u in reversed(_state["uploads"])]
 
-def start_upload(jid, cid, title, file, privacy, tags, description=None, meta=None):
+def start_upload(jid, cid, title, file, privacy, tags, description=None, meta=None, platform="youtube"):
     from . import youtube, jobs
     path = JOBS / jid / file
     u = {"id": uuid.uuid4().hex[:8], "jid": jid, "cid": cid, "title": title or "Clip", "file": file,
          "size": path.stat().st_size if path.exists() else 0, "privacy": privacy, "state": "queued",
          "progress": 0.0, "url": None, "error": None, "t0": time.time(), "t1": None,
-         "tags": list(tags or []), "meta": meta or {}}
+         "tags": list(tags or []), "meta": meta or {}, "platform": platform}
     with _lock: _state["uploads"].append(u); _save()
     def run():
         try:
             _set(u, state="uploading", note="Starting")
             def prog(f): _set(u, progress=round(float(f), 4), note="Uploading")
-            url = youtube.upload(path, title, description if description is not None else " ".join(tags or []), tags, privacy, prog=prog)
+            if platform == "tiktok":
+                from . import tiktok
+                tags_ = ["#" + t.lstrip("#").replace(" ", "") for t in (tags or [])[:5] if t.strip()]
+                url = tiktok.upload(path, description if description is not None else (title + (" " + " ".join(tags_) if tags_ else "")), privacy, prog=prog)
+            else:
+                url = youtube.upload(path, title, description if description is not None else " ".join(tags or []), tags, privacy, prog=prog)
             _set(u, state="done", progress=1.0, url=url, t1=time.time(), note="Done")
             def mark(j):
                 for c in j["clips"]:
-                    if c["id"] == cid: c["youtube"] = url
+                    if c["id"] == cid: c["youtube" if platform == "youtube" else "tiktok"] = url
             try: jobs.update(jid, mark)
             except Exception: pass
         except Exception as e:
             msg = f"{type(e).__name__}: {e}"
-            if "client" in msg.lower() or "token" in msg.lower() or "credentials" in msg.lower():
+            if platform == "youtube" and ("client" in msg.lower() or "token" in msg.lower() or "credentials" in msg.lower()):
                 msg = "YouTube is not connected. Sign in under Settings > Accounts, then try again."
             _set(u, state="error", error=msg[:300], t1=time.time())
         _save()

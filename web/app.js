@@ -423,12 +423,6 @@ async function search(){const q=$("q").value.trim();if(!q||!cur)return;
 async function addClip(s,e,t){await post(`/api/jobs/${cur}/clips`,{start:s,end:e,title:t});toast("Clip added")}
 async function sched(id){const w=document.querySelector(`#clip${id} .when`).value;if(!w){toast("Pick a date and time","err");return}
  const r=await post(`/api/jobs/${cur}/clips/${id}/schedule`,{when:w});toast(r.ok?"Scheduled for YouTube (private). Keep Clipsurge running.":"Failed",r.ok?"":"err")}
-async function up(id){const s=await (await api("/api/youtube")).json();
- if(!s.client_file){toast("Add your Google OAuth file at secrets/client_secret.json first (see README)","err");return}
- if(!s.connected){toast("Finish signing in on the Google page that opened...");const r=await api("/api/youtube/connect",{method:"POST"});if(!r.ok){toast((await r.json()).detail,"err");return}}
- const sy=(await (await api("/api/settings")).json()).settings.youtube||{};
- if(sy.smart_tags!==false&&window.uploadDialog){uploadDialog(cur,id);return}
- const r=await api(`/api/jobs/${cur}/clips/${id}/upload`,{method:"POST"});
- if(!r.ok)toast((await r.json()).detail,"err");else{toast("Upload started. Progress is in the box at the bottom right.");if(window.upKick)upKick()}}
+async function up(id){uploadDialog(cur,id)}
 
 initChrome();initTheme();refreshStatus();setInterval(refreshStatus,30000);route();
