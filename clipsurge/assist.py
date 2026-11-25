@@ -245,7 +245,7 @@ def existing_command(j, text):
             return _delete_clip(jid, pend["cid"])
         if NO.match(s):
             LAST.put(jid, pending=None); return f"Okay, I kept clip #{pend['cid']}."
-    if HOWQ.search(s) and not _re.search(r"\b(rename|retitle|re-title)\b", s, _re.I): return None
+    if HOWQ.search(s) and not st.get("pending_rename") and not _re.search(r"\b(renam\w*|retitle|re-title)\b", s, _re.I): return None
     if pend_ren := st.get("pending_rename"):
         if NO.match(s): LAST.put(jid, pending_rename=None); return "Okay, I left it as it is."
         if not _re.search(r"\b(rename|delete|clip|tags?|trim|caption)\b", s, _re.I):
