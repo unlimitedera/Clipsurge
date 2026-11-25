@@ -1,8 +1,21 @@
-# Clipsurge
+<p align="center">
+  <img src="docs/banner.png" alt="Clipsurge" width="100%">
+</p>
 
-Turn long videos into short vertical clips. Clipsurge finds the best moments, crops them to 9:16, adds captions, and exports them, all on your own computer.
+<p align="center">
+  Clipsurge finds the best moments in long videos, crops them to 9:16, adds captions and exports them, all on your own computer.
+</p>
 
-![Projects](docs/screenshots/01-projects.png)
+<p align="center">
+  <a href="#install-one-powershell-command"><b>Install</b></a> &nbsp;·&nbsp;
+  <a href="docs/USAGE.md"><b>How to use</b></a> &nbsp;·&nbsp;
+  <a href="docs/INSTALL.md"><b>Install guide</b></a> &nbsp;·&nbsp;
+  <a href="CREDITS.md"><b>Credits</b></a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/01-projects.png" alt="Clipsurge projects page" width="90%">
+</p>
 
 > **Copyright (c) 2026 unlimitedera. All Rights Reserved.** Clipsurge is proprietary software. You may look at the source code on GitHub, but you may not use, copy, modify, share or sell it without written permission from the author. See [LICENSE](LICENSE) and [TERMS.md](TERMS.md).
 
