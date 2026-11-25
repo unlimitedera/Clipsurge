@@ -10,3 +10,4 @@ _demo/
 *.tmp
 data/
 .hermes/
+.version

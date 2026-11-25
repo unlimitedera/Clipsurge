@@ -65,7 +65,10 @@ Info "Using $py"
 Step "Downloading Clipsurge ($Branch)"
 $zip = Join-Path $env:TEMP "clipsurge-$([guid]::NewGuid().ToString('N').Substring(0,8)).zip"
 $tmp = Join-Path $env:TEMP "clipsurge-src-$([guid]::NewGuid().ToString('N').Substring(0,8))"
-try { Invoke-WebRequest "https://github.com/$Repo/archive/refs/heads/$Branch.zip" -OutFile $zip }
+$sha = $null
+try { $sha = (Invoke-RestMethod "https://api.github.com/repos/$Repo/commits/$Branch" -Headers @{ "User-Agent" = "Clipsurge-installer" }).sha } catch {}
+$ref = if ($sha) { $sha } else { "refs/heads/$Branch" }
+try { Invoke-WebRequest "https://github.com/$Repo/archive/$ref.zip" -OutFile $zip }
 catch { Fail "Could not download from GitHub. Check your internet connection. ($($_.Exception.Message))" }
 Expand-Archive $zip -DestinationPath $tmp -Force
 $src = Get-ChildItem $tmp -Directory | Select-Object -First 1
@@ -75,6 +78,7 @@ $upgrade = Test-Path (Join-Path $Dir "clipsurge")
 robocopy $src.FullName $Dir /E /XD data secrets .venv tools /XF *.pyc /NFL /NDL /NJH /NJS /NP | Out-Null
 if ($LASTEXITCODE -ge 8) { Fail "Could not copy files into $Dir" }
 Remove-Item $zip, $tmp -Recurse -Force -ErrorAction SilentlyContinue
+if ($sha) { Set-Content -Path (Join-Path $Dir ".version") -Value ('{"sha":"' + $sha + '","date":"' + (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") + '"}') -Encoding ASCII }
 if ($upgrade) { Info "Updated the existing install. Your projects, settings and keys were kept." } else { Info "Installed to $Dir" }
 
 # ---------- 3. ffmpeg ----------

@@ -92,7 +92,9 @@ function renderSettings(){
  <div class="card sec" data-cat="about" data-sub="about" data-t="About Clipsurge creator unlimitedera credits open source version"><h3>About Clipsurge</h3>
   <p>Clipsurge turns long videos into short vertical clips: it finds the best moments, crops, captions and exports them. It runs on your own computer.</p>
   <div class="two" style="margin-top:10px"><div class="sit"><div class="mu small">Created by</div><div><b>unlimitedera</b></div></div><div class="sit"><div class="mu small">Copyright</div><div>2026 unlimitedera</div></div></div>
-  <div class="row" style="justify-content:flex-start;margin-top:14px"><button class="g" onclick="creditsDialog()">Credits</button></div></div>
+  <div class="sit" style="margin-top:10px"><div class="mu small">Version</div><div id="updver">${esc(window.updateVersionText?updateVersionText():"")}</div></div>
+  <div class="row" style="justify-content:flex-start;margin-top:14px;gap:10px"><button class="g" onclick="creditsDialog()">Credits</button><button class="g" onclick="updateDialog(true)">Check for updates</button>
+  <label class="chk" style="margin-left:6px"><input type="checkbox" ${localStorage.getItem("ct_upd_auto")==="0"?"":"checked"} onchange="localStorage.setItem('ct_upd_auto',this.checked?'1':'0');if(window.UPD&&window.UPD.available)document.getElementById('updb').hidden=!this.checked"><span>Tell me when an update is available</span></label></div></div>
  <div class="card sec" data-cat="about" data-sub="license" data-t="License all rights reserved copyright proprietary"><h3>License</h3>
   <p>Copyright (c) 2026 unlimitedera. All Rights Reserved.</p>
   <p class="mu">Clipsurge and its source code are proprietary. No permission is granted to use, copy, modify, merge, publish, distribute, sublicense, sell or create derivative works of it, in whole or in part, without written permission from unlimitedera. Viewing the source on a hosting platform does not grant any license.</p>

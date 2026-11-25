@@ -6,7 +6,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from . import transfers, library, models, jobs, llm, youtube, extras, settings, projects, fsbrowse, analyze
+from . import updater, transfers, library, models, jobs, llm, youtube, extras, settings, projects, fsbrowse, analyze
 from .config import JOBS, WEB, DATA, ROOT
 
 app = FastAPI(title="Clipsurge")
@@ -112,6 +112,20 @@ def status():
     p = llm.provider("rating")
     busy = sum(1 for j in jobs.list_jobs() if j["state"] in ("running", "queued"))
     return {"llm": llm.model_id("rating"), "provider": p["name"] if p else None, "busy": busy}
+
+@app.get("/api/update")
+def update_check(force: bool = False):
+    return {**updater.check(force), "progress": updater.status()}
+
+@app.get("/api/update/status")
+def update_status():
+    return updater.status()
+
+@app.post("/api/update/apply")
+def update_apply():
+    busy = sum(1 for j in jobs.list_jobs() if j["state"] in ("running", "queued"))
+    try: return updater.apply(busy)
+    except RuntimeError as e: raise HTTPException(400, str(e))
 
 @app.post("/api/restart")
 def restart_service():
