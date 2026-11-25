@@ -28,18 +28,19 @@ def _set(u, **kw):
 def list_uploads():
     with _lock: return [dict(u) for u in reversed(_state["uploads"])]
 
-def start_upload(jid, cid, title, file, privacy, tags):
+def start_upload(jid, cid, title, file, privacy, tags, description=None, meta=None):
     from . import youtube, jobs
     path = JOBS / jid / file
     u = {"id": uuid.uuid4().hex[:8], "jid": jid, "cid": cid, "title": title or "Clip", "file": file,
          "size": path.stat().st_size if path.exists() else 0, "privacy": privacy, "state": "queued",
-         "progress": 0.0, "url": None, "error": None, "t0": time.time(), "t1": None}
+         "progress": 0.0, "url": None, "error": None, "t0": time.time(), "t1": None,
+         "tags": list(tags or []), "meta": meta or {}}
     with _lock: _state["uploads"].append(u); _save()
     def run():
         try:
             _set(u, state="uploading", note="Starting")
             def prog(f): _set(u, progress=round(float(f), 4), note="Uploading")
-            url = youtube.upload(path, title, " ".join(tags or []), tags, privacy, prog=prog)
+            url = youtube.upload(path, title, description if description is not None else " ".join(tags or []), tags, privacy, prog=prog)
             _set(u, state="done", progress=1.0, url=url, t1=time.time(), note="Done")
             def mark(j):
                 for c in j["clips"]:

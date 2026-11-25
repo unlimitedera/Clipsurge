@@ -372,6 +372,9 @@ def _llm_rate(cands, mode, log, brief=None):
         wants += "Creator's own description of what they want (follow its tone, audience and taste):\n" + brief["prompt"][:3000] + "\n"
     if brief and brief.get("avoid"):
         wants += "Score moments about these very low:\n- " + "\n- ".join(brief["avoid"]) + "\n"
+    try:
+        from . import insights; wants += insights.llm_hint(mode)
+    except Exception: pass
     res = llm.chat_json(
         "You pick viral short-video moments. For each candidate rate 0-100 how well it works "
         "as a standalone short (hook, emotion, surprise, clear payoff). Write titles and hashtags in the same "

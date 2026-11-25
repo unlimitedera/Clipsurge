@@ -6,7 +6,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from . import updater, transfers, library, models, jobs, llm, youtube, extras, settings, projects, fsbrowse, analyze
+from . import insights, updater, transfers, library, models, jobs, llm, youtube, extras, settings, projects, fsbrowse, analyze
 from .config import JOBS, WEB, DATA, ROOT
 
 app = FastAPI(title="Clipsurge")
@@ -571,14 +571,48 @@ def yt_connect():
     except Exception as e: raise HTTPException(400, str(e))
     return youtube.state()
 
+class UploadBody(BaseModel):
+    title: str | None = None
+    tags: list[str] | None = None
+    description: str | None = None
+    privacy: str | None = None
+
+@app.get("/api/insights")
+def insights_report(refresh: bool = False):
+    insights.refresh(force=refresh)
+    a = insights.analyse()
+    a["youtube"] = youtube.state(); a["busy"] = insights._busy["stats"]; a["fetched"] = insights._load().get("fetched", 0)
+    return a
+
+@app.get("/api/insights/trending")
+def insights_trending(topic: str, force: bool = False):
+    return insights.trending(topic, force=force, wait=False)
+
+@app.get("/api/jobs/{jid}/clips/{cid}/tags")
+def clip_tags(jid: str, cid: int):
+    _clip(jobs.load(jid), cid)
+    return insights.suggest(jid, cid, wait=False)
+
 @app.post("/api/jobs/{jid}/clips/{cid}/upload")
-def upload_clip(jid: str, cid: int, privacy: str = ""):
-    privacy = privacy or settings.get()["youtube"]["privacy"]
+def upload_clip(jid: str, cid: int, privacy: str = "", body: UploadBody | None = None):
+    body = body or UploadBody()
+    privacy = body.privacy or privacy or settings.get()["youtube"]["privacy"]
     c = _clip(jobs.load(jid), cid)
     if not c.get("file"): raise HTTPException(404, "render the clip first")
     if any(u["jid"] == jid and u["cid"] == cid and u["state"] in ("queued", "uploading") for u in transfers.list_uploads()):
         raise HTTPException(400, "This clip is already uploading")
-    return transfers.start_upload(jid, cid, c["title"], c["file"], privacy, c.get("tags"))
+    tags = body.tags if body.tags is not None else c.get("tags")
+    title = (body.title or c["title"] or "Clip").strip()
+    desc = body.description
+    if desc is None and body.tags is not None:
+        hs = ["#" + t.lstrip("#").replace(" ", "") for t in body.tags[:3] if t.strip()]
+        desc = title + ("\n\n" + " ".join(hs) if hs else "")
+    j = jobs.load(jid); st = j.get("settings") or {}
+    meta = {"dur": round(max(0, (c.get("end") or 0) - (c.get("start") or 0)), 1), "score": c.get("score"),
+            "layout": c.get("layout_used"), "mode": st.get("mode"), "tags": [t.lstrip("#") for t in (tags or [])],
+            "project": j.get("project"), "source": j.get("title"), "captions": st.get("captions"),
+            "narration": bool(((c.get("edit") or {}).get("narration") or st.get("narration") or {}).get("enabled"))}
+    return transfers.start_upload(jid, cid, title, c["file"], privacy, tags, desc, meta)
 
 @app.get("/api/uploads")
 def uploads_list(): return transfers.list_uploads()

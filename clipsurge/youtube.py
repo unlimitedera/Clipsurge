@@ -1,6 +1,7 @@
 # Copyright (c) 2026 unlimitedera. All Rights Reserved.
 """YouTube Shorts upload via the official Data API (OAuth, your own Google project).
 Put your OAuth client file at secrets/client_secret.json (Desktop app type)."""
+import json
 from pathlib import Path
 from .config import ROOT
 
@@ -8,7 +9,8 @@ import os
 SECRETS = (Path(os.environ["CLIPSURGE_DATA"]) / "secrets") if os.environ.get("CLIPSURGE_DATA") else (ROOT / "secrets")
 CLIENT = SECRETS / "client_secret.json"
 TOKEN = SECRETS / "youtube_token.json"
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+SCOPES = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.readonly"]
+READ = "https://www.googleapis.com/auth/youtube.readonly"
 
 DEFAULT = Path(__file__).resolve().parent / "default_client.json"   # optional: a client shipped with the app
 
@@ -17,7 +19,15 @@ def _client_path():
 
 def state():
     return {"client_file": _client_path() is not None, "connected": TOKEN.exists(),
-            "bundled": (not CLIENT.exists()) and DEFAULT.exists()}
+            "bundled": (not CLIENT.exists()) and DEFAULT.exists(), "stats": can_read()}
+
+def _granted():
+    try: return set(json.loads(TOKEN.read_text("utf-8")).get("scopes") or [])
+    except Exception: return set()
+
+def can_read():
+    """True when the saved sign in may read video statistics (older sign ins only had upload permission)."""
+    return TOKEN.exists() and READ in _granted()
 
 def save_client(text=None, client_id=None, client_secret=None):
     """Store the Google OAuth client from the downloaded JSON, or from a pasted client id + secret."""
@@ -49,7 +59,7 @@ def disconnect(forget_client=False):
 def _creds():
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
-    c = Credentials.from_authorized_user_file(str(TOKEN), SCOPES)
+    c = Credentials.from_authorized_user_file(str(TOKEN), sorted(_granted()) or SCOPES)   # refresh with what was granted, not more
     if c.expired and c.refresh_token:
         c.refresh(Request()); TOKEN.write_text(c.to_json())
     return c
@@ -79,3 +89,17 @@ def upload(path, title, description="", tags=None, privacy="private", prog=None)
         st, resp = req.next_chunk()
         if st and prog: prog(st.progress())
     return f"https://youtube.com/shorts/{resp['id']}"
+
+def videos_stats(ids):
+    """{video_id: {views, likes, comments, privacy, published}} for videos on the signed in channel (needs read permission)."""
+    from googleapiclient.discovery import build
+    yt = build("youtube", "v3", credentials=_creds())
+    out = {}
+    for i in range(0, len(ids), 50):
+        r = yt.videos().list(part="statistics,status,snippet", id=",".join(ids[i:i + 50])).execute()
+        for it in r.get("items", []):
+            s = it.get("statistics", {})
+            out[it["id"]] = {"views": int(s.get("viewCount", 0)), "likes": int(s.get("likeCount", 0)),
+                             "comments": int(s.get("commentCount", 0)), "privacy": it.get("status", {}).get("privacyStatus"),
+                             "published": it.get("snippet", {}).get("publishedAt")}
+    return out
