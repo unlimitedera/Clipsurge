@@ -6,12 +6,13 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from . import models, jobs, llm, youtube, extras, settings, projects, fsbrowse, analyze
+from . import transfers, library, models, jobs, llm, youtube, extras, settings, projects, fsbrowse, analyze
 from .config import JOBS, WEB, DATA, ROOT
 
 app = FastAPI(title="Clipsurge")
 projects.ensure_inbox()
 jobs.mark_orphans()
+library.sync_async()
 threading.Thread(target=extras.sched_loop, daemon=True).start()
 
 def _clip(job, cid):
@@ -122,6 +123,103 @@ def restart_service():
     threading.Timer(0.7, lambda: os._exit(0)).start()
     return {"restarting": True}
 
+_SZ = {}
+def _dsize(p, ttl=20):
+    """Folder size in bytes, cached briefly (walking big folders is slow)."""
+    import os, time
+    k = str(p); hit = _SZ.get(k)
+    if hit and time.time() - hit[0] < ttl: return hit[1]
+    tot = 0
+    for root, _, fs in os.walk(p):
+        for f in fs:
+            try: tot += os.path.getsize(os.path.join(root, f))
+            except OSError: pass
+    _SZ[k] = (time.time(), tot); return tot
+
+def _fsz(p):
+    try: return p.stat().st_size
+    except OSError: return 0
+
+def _parts(jid):
+    """What is inside one video's folder, grouped for people: original, clips (each), transcript, other."""
+    d = JOBS / jid
+    src, clips, text, other = [], [], [], []
+    for p in sorted(d.iterdir()) if d.is_dir() else []:
+        n = p.name.lower()
+        if p.is_dir() and n == "clips":
+            for c in sorted(p.iterdir()):
+                clips.append({"name": c.name, "size": _fsz(c) if c.is_file() else _dsize(c), "rel": f"clips/{c.name}"})
+        elif n.startswith("source."): src.append({"name": p.name, "size": _fsz(p), "rel": p.name})
+        elif n in ("transcript.json", "audio.wav", "energy.json") or n.endswith((".srt", ".otio", ".edl")):
+            text.append({"name": p.name, "size": _fsz(p), "rel": p.name})
+        else: other.append({"name": p.name, "size": _fsz(p) if p.is_file() else _dsize(p), "rel": p.name})
+    g = lambda label, items, rel="": {"label": label, "size": sum(i["size"] for i in items), "items": items, "rel": rel}
+    out = [g("Original video", src), g(f"Clips ({len([c for c in clips if c['name'].endswith('.mp4')])})", clips, "clips"),
+           g("Transcript and audio", text), g("Other", other)]
+    return [x for x in out if x["items"]]
+
+@app.get("/api/storage")
+def storage(pid: str | None = None):
+    """Space Clipsurge uses. With pid: that project's videos, their folders and the total."""
+    if pid is None:
+        return {"total": _dsize(DATA), "path": str(DATA)}
+    try: projects.get(pid)
+    except FileNotFoundError: raise HTTPException(404)
+    vids = [{"id": j["id"], "title": j.get("title"), "size": _dsize(JOBS / j["id"]), "path": str(JOBS / j["id"]),
+             "parts": _parts(j["id"])} for j in jobs.list_jobs() if j.get("project") == pid]
+    pr = projects.get(pid)
+    pd = library.project_dir(pid)
+    return {"name": pr["name"], "total": sum(v["size"] for v in vids), "path": str(pd or JOBS), "videos": vids}
+
+class OpenIn(BaseModel):
+    job: str | None = None
+    project: str | None = None  # open that project's Explorer folder
+    sub: str | None = None      # file or folder inside that video's folder
+
+@app.post("/api/open-folder")
+def open_folder(body: OpenIn):
+    """Show a video's folder (or the videos folder) in Windows Explorer."""
+    import os, subprocess
+    if body.project and not body.job:
+        library.sync()
+        pd = library.project_dir(body.project)
+        if pd is None: raise HTTPException(404, "Project not found")
+        subprocess.Popen(["explorer", str(pd)]); return {"opened": str(pd)}
+    p = ((JOBS / body.job / (body.sub or "")) if body.job else JOBS).resolve()
+    if p != JOBS.resolve() and JOBS.resolve() not in p.parents: raise HTTPException(400, "Not a Clipsurge folder")
+    if not p.exists(): raise HTTPException(404, "That does not exist any more")
+    if p.is_file(): subprocess.Popen(["explorer", "/select,", str(p)])      # opens the folder with the file highlighted
+    else: subprocess.Popen(["explorer", str(p)])
+    return {"opened": str(p)}
+
+@app.get("/api/memory")
+def memory():
+    """GPU and system memory in use, plus the models Clipsurge itself loaded (those it can unload)."""
+    hw = models.hardware()
+    g = hw["gpus"][0] if hw["gpus"] else None
+    ls = models.local_status()
+    busy = [j for j in jobs.list_jobs() if j["state"] in ("running", "queued")]
+    return {"vram_used": g["used"] if g else None, "vram_total": g["total"] if g else None,
+            "ram_used": hw["ram_total"] - hw["ram_free"], "ram_total": hw["ram_total"],
+            "llm": {"loaded": ls["running"], "ready": ls["ready"], "name": ls["file"]},
+            "busy": len(busy), "storage": _dsize(DATA, 60)}
+
+@app.post("/api/models/unload")
+def unload_models():
+    """Unload what Clipsurge loaded (its managed local language model). Other apps' models are left alone."""
+    was = models.local_status()["running"]
+    models.stop_local()
+    return {"unloaded": ["language model"] if was else []}
+
+@app.post("/api/stop")
+def stop_service():
+    """Shut Clipsurge down (no relaunch). Videos in progress become 'interrupted' and can be resumed later."""
+    import os
+    try: models.stop_local()
+    except Exception: pass
+    threading.Timer(0.7, lambda: os._exit(0)).start()
+    return {"stopping": True}
+
 @app.get("/api/jobs")
 def list_jobs():
     return [{k: j.get(k) for k in ("id", "title", "state", "overall", "project")} for j in jobs.list_jobs()]
@@ -133,7 +231,7 @@ def _proj_view(pr, with_jobs=False):
     out = {**pr, "videos": len(js), "clips": clips,
            "running": sum(1 for j in js if j["state"] in ("running", "queued")),
            "last": max([0] + [float(__import__("time").mktime(__import__("time").strptime(j["id"][:15], "%Y%m%d-%H%M%S"))) for j in js]),
-           "thumbs": [j["id"] for j in js if j.get("video")][:3]}
+           "thumbs": [j["id"] for j in js if j.get("video")][:8]}
     if with_jobs:
         out["jobs"] = js
     return out
@@ -159,17 +257,17 @@ def get_project(pid: str):
 
 @app.post("/api/projects/{pid}")
 def edit_project(pid: str, p: dict):
-    try: return _proj_view(projects.update(pid, p), True)
+    try: out = _proj_view(projects.update(pid, p), True)
     except FileNotFoundError: raise HTTPException(404)
+    library.sync_async(); return out
 
 @app.delete("/api/projects/{pid}")
 def del_project(pid: str):
-    if pid == "inbox": raise HTTPException(400, "The Inbox cannot be deleted")
     for j in jobs.list_jobs():
         if j.get("project") == pid:
             if j["state"] in ("running", "queued"): raise HTTPException(400, "Cancel running videos first")
             jobs.remove(j["id"])
-    projects.delete(pid); return {"ok": True}
+    projects.delete(pid); library.sync_async(); return {"ok": True}
 
 class AddVideos(BaseModel):
     sources: list[str]
@@ -296,8 +394,10 @@ async def new_job(url: str = Form(""), mode: str = Form("auto"), count: int = Fo
         with open(dst, "wb") as f: shutil.copyfileobj(file.file, f)
         src = str(dst)
     if not src: raise HTTPException(400, "give a link or a file")
-    return jobs.create(src, {"mode": mode, "count": count, "minlen": minlen,
-                             "maxlen": maxlen, "layout": layout, "captions": captions}, project)
+    try:
+        return jobs.create(src, {"mode": mode, "count": count, "minlen": minlen,
+                                 "maxlen": maxlen, "layout": layout, "captions": captions}, project)
+    except ValueError as e: raise HTTPException(400, str(e))
 
 class ClipEdit(BaseModel):
     edit: dict | None = None
@@ -360,10 +460,50 @@ def rerender_all(jid: str):
     if ids: jobs.rerender(jid, ids)
     return {"queued": ids}
 
+class WebcamIn(BaseModel):
+    box: list[float] | None = None      # [x1, y1, x2, y2] fractions; None = no webcam
+    auto: bool = False                  # forget the hand-drawn box and detect again next render
+
+@app.post("/api/jobs/{jid}/webcam")
+def set_webcam(jid: str, b: WebcamIn):
+    if b.auto:
+        jobs.update(jid, lambda j: j.pop("webcam", None)); return {"webcam": None}
+    if b.box is not None and len(b.box) != 4: raise HTTPException(400, "box needs 4 numbers")
+    try: return jobs.public(jobs.set_webcam(jid, b.box))["webcam"]
+    except ValueError as e: raise HTTPException(400, str(e))
+
+class RedoIn(BaseModel):
+    step: int
+    through_end: bool = False
+
+@app.post("/api/jobs/{jid}/redo")
+def redo_step(jid: str, body: RedoIn):
+    if not 0 <= body.step <= 4: raise HTTPException(400, "unknown step")
+    try: return jobs.public(jobs.redo(jid, body.step, body.through_end))
+    except RuntimeError as e: raise HTTPException(400, str(e))
+
+class OverrideIn(BaseModel):
+    enabled: bool
+    brief: dict | None = None
+    settings: dict | None = None
+
+@app.post("/api/jobs/{jid}/override")
+def set_override(jid: str, body: OverrideIn):
+    """Turn per-video goals/settings on (they beat the project) or off (follow the project again)."""
+    return jobs.public(jobs.set_override(jid, body.enabled, body.brief, body.settings))
+
+@app.post("/api/jobs/{jid}/narration")
+def set_job_narration(jid: str, body: dict):
+    """Per-video narration choices (on, title_caption, voice, vol). Missing keys fall back to Settings."""
+    keep = {k: body[k] for k in ("on", "title_caption", "voice", "vol") if body.get(k) not in (None, "")}
+    jobs.update(jid, lambda j: j.setdefault("settings", {}).__setitem__("narration", keep))
+    return {"narration": keep}
+
 class NewClip(BaseModel):
     start: float
     end: float
     title: str = "Custom clip"
+    edit: dict | None = None      # optional crop / caption choices made while marking the clip
 
 @app.get("/api/jobs/{jid}/search")
 def search(jid: str, q: str):
@@ -378,7 +518,8 @@ def add_clip(jid: str, n: NewClip):
     def f(j):
         i = max([c["id"] for c in j["clips"]] + [0]) + 1; cid.append(i)
         j["clips"].append({"id": i, "start": n.start, "end": n.end, "score": 0, "title": n.title,
-                           "tags": [], "text": "", "approved": True, "status": "queued"})
+                           "tags": [], "text": "", "approved": True, "status": "queued",
+                           **({"edit": n.edit} if n.edit else {})})
     jobs.update(jid, f); jobs.rerender(jid, cid); return {"id": cid[0]}
 
 class Sched(BaseModel):
@@ -395,6 +536,21 @@ def sched(): return extras.sched_list()
 @app.get("/api/youtube")
 def yt_state(): return youtube.state()
 
+class YtClientIn(BaseModel):
+    json_text: str | None = None
+    client_id: str | None = None
+    client_secret: str | None = None
+
+@app.post("/api/youtube/client")
+def yt_client(body: YtClientIn):
+    try: youtube.save_client(body.json_text, body.client_id, body.client_secret)
+    except ValueError as e: raise HTTPException(400, str(e))
+    return youtube.state()
+
+@app.post("/api/youtube/disconnect")
+def yt_disconnect(forget_client: bool = False):
+    youtube.disconnect(forget_client); return youtube.state()
+
 @app.post("/api/youtube/connect")
 def yt_connect():
     try: youtube.connect()
@@ -406,11 +562,43 @@ def upload_clip(jid: str, cid: int, privacy: str = ""):
     privacy = privacy or settings.get()["youtube"]["privacy"]
     c = _clip(jobs.load(jid), cid)
     if not c.get("file"): raise HTTPException(404, "render the clip first")
-    try: url = youtube.upload(JOBS / jid / c["file"], c["title"], " ".join(c.get("tags", [])),
-                              c.get("tags"), privacy)
-    except Exception as e: raise HTTPException(400, f"{type(e).__name__}: {e}")
-    jobs.update(jid, lambda j: _clip(j, cid).update(youtube=url))
-    return {"youtube": url}
+    if any(u["jid"] == jid and u["cid"] == cid and u["state"] in ("queued", "uploading") for u in transfers.list_uploads()):
+        raise HTTPException(400, "This clip is already uploading")
+    return transfers.start_upload(jid, cid, c["title"], c["file"], privacy, c.get("tags"))
+
+@app.get("/api/uploads")
+def uploads_list(): return transfers.list_uploads()
+
+@app.delete("/api/uploads")
+def uploads_clear(uid: str | None = None):
+    transfers.clear(uid); return {"ok": True}
+
+class ClipDl(BaseModel):
+    jid: str
+    cid: int
+    kind: str = "mp4"
+
+@app.post("/api/downloads/clip")
+def log_dl(b: ClipDl):
+    try:
+        c = _clip(jobs.load(b.jid), b.cid)
+        f = JOBS / b.jid / (c.get("file") or "")
+        transfers.log_clip_download(b.jid, b.cid, c.get("title"), b.kind, f.stat().st_size if f.is_file() else 0)
+    except Exception: pass
+    return {"ok": True}
+
+@app.delete("/api/downloads")
+def dl_clear(): transfers.clear_downloads(); return {"ok": True}
+
+@app.get("/api/downloads")
+def dl_list():
+    vids = []
+    for j in jobs.list_jobs():
+        if not j.get("video"): continue
+        f = JOBS / j["id"] / j["video"]
+        vids.append({"id": j["id"], "title": j.get("title"), "project": j.get("project"), "source": j.get("source"),
+                     "size": f.stat().st_size if f.is_file() else 0, "t": f.stat().st_mtime if f.is_file() else 0})
+    return {"videos": sorted(vids, key=lambda v: -v["t"]), "clips": transfers.clips_downloaded()}
 
 @app.post("/api/obs/start")
 def obs_start():
@@ -424,7 +612,8 @@ def obs_start():
 def obs_stop(mode: str = "auto", count: int = 5, project: str = "inbox"):
     try: path = extras.obs_stop()
     except Exception as e: raise HTTPException(400, f"{type(e).__name__}: {e}")
-    return jobs.create(path, {"mode": mode, "count": count}, project)
+    try: return jobs.create(path, {"mode": mode, "count": count}, project)
+    except ValueError as e: raise HTTPException(400, str(e))
 
 @app.get("/files/{jid}/{path:path}")
 def files(jid: str, path: str):
@@ -436,4 +625,5 @@ app.mount("/", StaticFiles(directory=WEB, html=True), name="web")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8420)
+    import os
+    uvicorn.run(app, host="127.0.0.1", port=int(os.environ.get("CLIPSURGE_PORT") or 8420))

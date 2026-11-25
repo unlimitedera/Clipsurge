@@ -5,11 +5,12 @@ const IDEAS=["Funny reactions","Clutch plays and comebacks","Rage and screaming"
 const AVOID=["Sponsor reads","Menus and loading screens","Long silences"];
 const MODES=[["auto","Auto"],["gaming","Gaming"],["podcast","Podcast"],["tutorial","Tutorial"]];
 const LANGS=[["auto","Auto-detect"],["ar","Arabic"],["en","English"],["es","Spanish"],["fr","French"],["de","German"],["tr","Turkish"],["ru","Russian"],["hi","Hindi"],["ur","Urdu"],["fa","Persian"],["he","Hebrew"],["pt","Portuguese"],["it","Italian"],["ja","Japanese"],["ko","Korean"],["zh","Chinese"]];
-const LAYOPT=[["auto","Auto"],["stack","Webcam + gameplay"],["game","Gameplay only"],["fit","Whole screen + blur"],["follow","Follow face"]];
+const LAYOPT=[["auto","Auto"],["stack","Webcam + gameplay"],["game","Gameplay only"],["fit","Whole screen + blur"],["follow","Follow face"],["speaker","Cut to speaker"]];
 const opt2=(v,l)=>l.map(([k,t])=>`<option value="${k}" ${String(v)===String(k)?"selected":""}>${t}</option>`).join("");
 const app=()=>$("app");
 function initChrome(){
- $("nv_projects").innerHTML=withIco("grid","Projects",15);$("nv_settings").innerHTML=withIco("sliders","Settings",15);
+ $("nv_projects").innerHTML=withIco("grid","Projects",15);$("nv_settings").innerHTML=withIco("sliders","Settings",15);$("nv_transfers").innerHTML=withIco("download","Transfers",15);
+ const br=document.querySelector(".brand");br.setAttribute("role","link");br.tabIndex=0;br.title="Overview";br.onclick=()=>nav("/overview");br.onkeydown=e=>{if(e.key=="Enter")nav("/overview")};
  const r=$("restart");r.innerHTML=withIco("power","Restart",13);r.onclick=restartServices}
 function setTheme(t){document.documentElement.dataset.theme=t;try{localStorage.setItem("ct_theme",t)}catch(e){}
  const sw=$("themeSw");if(sw)sw.setAttribute("aria-checked",t=="light")}
@@ -66,13 +67,20 @@ function stopPoll(){clearTimeout(timer);timer=null}
 
 /* ---------- router ---------- */
 window.addEventListener("hashchange",route);
+const SUBNAMES={ai:"AI and agents",clip:"Clipping",media:"Speech and video",acct:"Accounts",about:"About"};
+function pageTitleFor(path){
+ if(path=="/overview")return "Overview";if(path=="/transfers")return "Transfers";if(path=="/settings")return "Settings";
+ if(/^\/p\/[^/]+\/v\//.test(path))return "Video";if(/^\/p\/[^/]+$/.test(path))return "Project";return "Projects"}
 function nav(h){location.hash=h}
+function setTitle(t){document.title=t?"Clipsurge: "+t:"Clipsurge"}
 function route(){
- stopPoll();const h=(location.hash||"#/projects").slice(1);const [path,qs]=h.split("?");const q=new URLSearchParams(qs||"");
+ stopPoll();setTitle(pageTitleFor((location.hash||"#/projects").slice(1).split("?")[0]));document.querySelectorAll("video,audio").forEach(m=>{try{m.pause()}catch(e){}});const h=(location.hash||"#/projects").slice(1);const [path,qs]=h.split("?");const q=new URLSearchParams(qs||"");
  let m;
  $("settingsView").classList.add("hide");app().classList.remove("hide");
  document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("on"));
  if(path=="/settings"){app().classList.add("hide");$("settingsView").classList.remove("hide");$("nv_settings").classList.add("on");loadSettings();return}
+ if(path=="/overview")return overviewView();
+ if(path=="/transfers"){$("nv_transfers").classList.add("on");return transfersView()}
  $("nv_projects").classList.add("on");
  if(m=path.match(/^\/p\/([^/]+)\/v\/([^/]+)$/))return videoView(m[1],m[2],q.get("clip"));
  if(m=path.match(/^\/p\/([^/]+)$/))return projectView(m[1],q.get("tab")||"videos");
@@ -88,10 +96,12 @@ async function projectsView(){
   if(view!="projects")return;
   const ps=await jget("/api/projects");
   const html=ps.map(p=>`<div class="pwrap"><a class="pcard" href="#/p/${p.id}" aria-label="Open project ${esc(p.name)}">
-   <div class="phero">${p.thumbs[0]?`<img loading="lazy" src="/api/jobs/${p.thumbs[0]}/thumb" alt="">`:""}${p.running?`<span class="live">${p.running} working</span>`:""}<div class="ptitle">${esc(p.name)}</div></div>
+   <div class="phero">${p.thumbs.map((t,i)=>`<img class="sl${i?"":" on"}" loading="lazy" ${i?"data-src":"src"}="/api/jobs/${t}/thumb" alt="">`).join("")}${p.thumbs.length>1?`<div class="sdots">${p.thumbs.map((t,i)=>`<i class="${i?"":"on"}"></i>`).join("")}</div>`:""}${p.running?`<span class="live">${p.running} working</span>`:""}<div class="ptitle">${esc(p.name)}</div></div>
    <div class="pbody"><p class="mu clamp">${esc(p.description||(p.brief.ideas.length?"Looking for: "+p.brief.ideas.slice(0,3).join(", "):"No goals set yet"))}</p>
-   <div class="pmeta"><span><b>${p.videos}</b>video${p.videos==1?"":"s"}</span><span><b>${p.clips}</b>clips</span><span>${p.last?ago(p.last):""}</span></div></div></a><div class="pact"><button class="ib" data-pe="${p.id}" title="Edit project" aria-label="Edit ${esc(p.name)}">${ico("pencil",14)}</button>${p.id!="inbox"?`<button class="ib bad" data-pd="${p.id}" title="Delete project" aria-label="Delete ${esc(p.name)}">${ico("trash",14)}</button>`:""}</div></div>`).join("");
-  window.__projects=ps;const g=$("pgrid");if(g&&g.dataset.h!==html){g.dataset.h=html;g.innerHTML=html||`<div class="empty big">No projects yet. Create one to start.</div>`;
+   <div class="pmeta"><span><b>${p.videos}</b>video${p.videos==1?"":"s"}</span><span><b>${p.clips}</b>clips</span><span>${p.last?ago(p.last):""}</span></div></div></a><button class="g padd" data-pa="${p.id}" title="Add videos to ${esc(p.name)}">${withIco("plus","Add video",13)}</button><div class="pact"><button class="ib" data-pe="${p.id}" title="Edit project" aria-label="Edit ${esc(p.name)}">${ico("pencil",14)}</button><button class="ib bad" data-pd="${p.id}" title="Delete project" aria-label="Delete ${esc(p.name)}">${ico("trash",14)}</button></div></div>`).join("");
+  window.__projects=ps;const g=$("pgrid");if(g&&g.dataset.h!==html){g.dataset.h=html;g.innerHTML=html||`<div class="emptyp"><div class="ep-mark"></div><h2>Create a project to start clipping</h2><p class="mu">A project holds your videos and tells Clipsurge what kind of moments to look for.</p><button data-new2>${withIco("plus","New project")}</button></div>`;const n2=g.querySelector("[data-new2]");if(n2)n2.onclick=newProjectModal;
+   g.querySelectorAll(".pwrap").forEach(slideshow);
+   g.querySelectorAll("[data-pa]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();addVideosModal(b.dataset.pa)});
    g.querySelectorAll("[data-pe]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();projectForm(ps.find(p=>p.id==b.dataset.pe))});
    g.querySelectorAll("[data-pd]").forEach(b=>b.onclick=async e=>{e.preventDefault();e.stopPropagation();const p=ps.find(x=>x.id==b.dataset.pd);
     if(p.running){toast("Cancel the videos that are still working first","err");return}
@@ -99,6 +109,29 @@ async function projectsView(){
      const r=await api("/api/projects/"+p.id,{method:"DELETE"});if(r.ok){toast("Project deleted");projectsView()}else toast((await r.json()).detail,"err")}})}
  },3000)}
 
+/* hover a project card: its thumbnail glides through the videos inside */
+function slideshow(w){
+ const imgs=[...w.querySelectorAll(".phero img.sl")];if(imgs.length<2)return;
+ const dots=[...w.querySelectorAll(".sdots i")];let i=0,tm=null;
+ const show=n=>{imgs[i].classList.remove("on");dots[i]&&dots[i].classList.remove("on");i=n;imgs[i].classList.add("on");dots[i]&&dots[i].classList.add("on")};
+ w.addEventListener("mouseenter",()=>{imgs.forEach(m=>{if(m.dataset.src){m.src=m.dataset.src;delete m.dataset.src}});clearInterval(tm);tm=setInterval(()=>show((i+1)%imgs.length),1700)});
+ w.addEventListener("mouseleave",()=>{clearInterval(tm);tm=null;show(0)})}
+const gbs=b=>b>=1e9?(b/1e9).toFixed(2)+" GB":b>=1e6?Math.round(b/1e6)+" MB":Math.max(0,Math.round(b/1e3))+" KB";
+async function storageCard(pid){
+ const el=$("pstore");if(!el)return;
+ let s;try{s=await jget("/api/storage?pid="+encodeURIComponent(pid))}catch(e){el.remove();return}
+ const open=async(j,sub)=>{const r=await post("/api/open-folder",{job:j,sub});if(!r.ok)toast((await r.json().catch(()=>({}))).detail||"Could not open","err")};
+ const row=(d,cls,main,size,attr)=>`<div class="tn ${cls}" style="--d:${d}"><button class="tx" ${attr}>${main}</button><span class="mono mu small">${gbs(size)}</span></div>`;
+ const tree=s.videos.map(v=>{
+  const parts=v.parts.map(p=>{
+   const kids=p.items.length>1||p.rel=="clips"?p.items.map(it=>row(3,"leaf",`${ico("film",12)}<span>${esc(it.name)}</span>`,it.size,`data-j="${v.id}" data-sub="${esc(it.rel)}"`)).join(""):"";
+   return `<details class="td" ${p.items.length>1&&p.rel!="clips"?"":""}><summary>${row(2,"grp",`<span class="chv"></span><span>${esc(p.label)}</span>`,p.size,`data-j="${v.id}" data-sub="${esc(p.rel||(p.items[0]&&p.items.length==1?p.items[0].rel:""))}"`)}</summary>${kids||p.items.map(it=>row(3,"leaf",`<span>${esc(it.name)}</span>`,it.size,`data-j="${v.id}" data-sub="${esc(it.rel)}"`)).join("")}</details>`}).join("");
+  return `<details class="td vid"><summary>${row(1,"v",`<span class="chv"></span><span>${esc(v.title||v.id)}</span>`,v.size,`data-j="${v.id}" data-sub=""`)}</summary>${parts}</details>`}).join("");
+ el.innerHTML=`<div class="row sp"><div><b>Storage</b><div class="mu small">What this project's videos and clips take on this computer. Click a name to open it in Explorer.</div></div><div class="stbig mono">${gbs(s.total)}</div></div>
+  <div class="crumb mono"><button class="cb" data-root>${ico("folder",13)}<span>${esc(s.path)}</span></button><span class="mu">›</span><b>${esc(s.name)}</b><span class="mu">›</span><span class="mu">${s.videos.length} video${s.videos.length==1?"":"s"}</span></div>
+  ${s.videos.length?`<div class="tree"><div class="tn root" style="--d:0"><span class="tx"><b>${esc(s.name)}</b></span><span class="mono mu small">${gbs(s.total)}</span></div>${tree}</div>`:`<p class="mu small">No videos yet.</p>`}`;
+ el.querySelector("[data-root]").onclick=async()=>{const r=await post("/api/open-folder",{project:pid});if(!r.ok)toast((await r.json().catch(()=>({}))).detail||"Could not open","err")};
+ el.querySelectorAll("button.tx[data-j]").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();open(b.dataset.j,b.dataset.sub||null)})}
 function newProjectModal(){projectForm(null)}
 function projectForm(P){
  const edit=!!P,br=(P&&P.brief)||{ideas:[],avoid:[],prompt:""},d=(P&&P.defaults)||{};
@@ -128,7 +161,7 @@ function projectForm(P){
 async function projectView(pid,tab){
  view="project";
  let P;try{P=await jget("/api/projects/"+pid)}catch(e){toast("Project not found","err");nav("/projects");return}
- app().innerHTML=`<nav class="crumbs2"><a href="#/projects">Projects</a><span>/</span><b>${esc(P.name)}</b></nav>
+ app().innerHTML=`<nav class="crumbs2"><a href="#/projects">Projects</a><span>/</span><b>${esc(P.name)}</b></nav>${(setTitle(P.name),"")}
   <div class="phead"><div><h1>${esc(P.name)}</h1><p class="mu">${esc(P.description||"")}</p><div class="ideas" id="ideasrow"></div></div>
   <div class="btns"><button class="g" id="rec">${withIco("record","Record (OBS)")}</button><button data-add>${withIco("plus","Add videos")}</button></div></div>
   <div class="tabs" role="tablist">${[["videos","Videos"],["clips","All clips"],["brief","Goals and settings"]].map(([k,t])=>`<button role="tab" class="${tab==k?"on":""}" data-tab="${k}">${t}</button>`).join("")}</div>
@@ -197,7 +230,8 @@ function drawClips(P){
 
 function drawBrief(P){
  const d=P.defaults||{};const el=$("ptab");
- el.innerHTML=`<div class="two big2"><div class="card"><h3>Tell the AI what to look for</h3>
+ el.innerHTML=`<div class="card" id="pstore"></div>
+  <div class="two big2"><div class="card"><h3>Tell the AI what to look for</h3>
   <p class="mu">Add short tags for the kinds of moments you want, then describe the rest in your own words. Matching moments score higher and show the tag they matched.</p>
   <label>Tags</label><div id="bi-tags"></div>
   <div class="chips">${IDEAS.map(t=>`<button class="chip2" data-add="${esc(t)}">+ ${t}</button>`).join("")}</div>
@@ -212,7 +246,8 @@ function drawBrief(P){
    <label>Spoken language<select id="blang">${opt2(d.language||"auto",LANGS)}</select></label><label>Speech model<select id="bwm">${opt2(d.whisper_model||"",[["","Use the Settings default"],["small","small (fast)"],["medium","medium"],["large-v3","large-v3 (best, use for Arabic)"]])}</select></label>
    <label>Shortest (s)<input type="number" id="bmin" value="${d.minlen||20}"></label><label>Longest (s)<input type="number" id="bmax" value="${d.maxlen||55}"></label></div></div>
   <div class="row" style="justify-content:flex-start;gap:10px"><button id="bsave">Save</button><button class="g" id="bapply">Save and re-find in all videos</button></div>
-  ${P.id!="inbox"?`<div class="card danger-zone"><h3>Delete project</h3><p class="mu small">Removes the project, its videos and all clips Clipsurge made. Your original files are not touched.</p><button class="danger" id="bdel">Delete project</button></div>`:""}</div></div>`;
+  <div class="card danger-zone"><h3>Delete project</h3><p class="mu small">Removes the project, its videos and all clips Clipsurge made. Your original files are not touched.</p><button class="danger" id="bdel">Delete project</button></div></div></div>`;
+ storageCard(P.id);
  api("/api/status").then(r=>r.json()).then(s=>{$("aihint").textContent=s.llm?"AI connected: matching uses the model's judgment as well as keywords.":"No AI connected: matching uses your words directly. Connect a model in Settings for smarter matching."});
  const TI=makeTags($("bi-tags"),P.brief.ideas,"Funny reactions, clutch plays..."),TA=makeTags($("ba-tags"),P.brief.avoid,"Sponsor reads, menus...");
  el.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>TI.add(b.dataset.add));
@@ -221,7 +256,7 @@ function drawBrief(P){
  const save=async()=>{const r=await post("/api/projects/"+P.id,{name:$("bn").value,description:$("bd").value,brief:{ideas:TI.get(),avoid:TA.get(),prompt:$("bp").value},
   defaults:{mode:$("bm").value,count:+$("bc").value,layout:$("bl").value,captions:$("bk").value,minlen:+$("bmin").value,maxlen:+$("bmax").value,language:$("blang").value,whisper_model:$("bwm").value}});if(!r.ok){toast("Could not save","err");return false}toast("Saved");return true};
  $("bsave").onclick=save;
- $("bapply").onclick=async()=>{if(!await save())return;const jobs=(P.jobs||[]).filter(j=>j.video&&!["running","queued"].includes(j.state));
+ $("bapply").onclick=async()=>{if(!await save())return;const jobs=(P.jobs||[]).filter(j=>j.video&&!j.override&&!["running","queued"].includes(j.state));
   if(!jobs.length){toast("No finished videos to re-find");return}
   if(!await confirmBox("Re-find in all videos",`This re-picks moments in ${jobs.length} video${jobs.length>1?"s":""} with the new goals and renders new clips. Clip edits are replaced.`,"Re-find"))return;
   for(const j of jobs)await api(`/api/jobs/${j.id}/refind`,{method:"POST"});toast("Working on it");nav("/p/"+P.id)};
@@ -264,32 +299,66 @@ async function videoView(pid,jid,focusClip){
  app().innerHTML=`<nav class="crumbs2"><a href="#/projects">Projects</a><span>/</span><a href="#/p/${pid}">${esc(P.name)}</a><span>/</span><b id="vt">Video</b></nav>
  <div class="layout"><div class="card"><b>Pipeline</b><div id="pipe"></div><div class="mu" id="info" style="margin-top:10px"></div></div>
  <div><div class="card"><div class="row sp"><div><b id="jt"></b> <span id="jchips"></span></div><div class="row"><button class="g sm" id="refind">Re-find with current goals</button></div></div>
-  <div id="goals" class="ideas"></div><div class="err" id="jerr"></div><div class="log" id="jlog"></div>
-  <div style="margin-top:8px" class="row" ><button id="rbtn" class="hide" onclick="renderPending()">Render pending clips</button><button class="g sm" onclick="rerenderAll()">Re-render all clips</button></div></div>
+  <div id="goals" class="ideas"></div><div id="wcask"></div><div class="err" id="jerr"></div><div class="log" id="jlog"></div>
+  <div style="margin-top:8px" class="row" ><button id="rbtn" class="hide" onclick="renderPending()">Render pending clips</button><button class="g sm" onclick="rerenderAll()">Re-render all clips</button><button class="g sm" id="wcbtn">${withIco("search","Choose webcam",13)}</button><button class="g sm" id="narbtn">${withIco("sliders","Narration for this video",13)}</button></div></div>
+ <div class="card" id="vset"></div>
+ <div class="card" id="vplay"></div>
  <div class="card"><div class="row"><input type="text" id="q" placeholder='Find a moment: "the funny story about the server"' onkeydown="if(event.key==\'Enter\')search()"><button class="g" onclick="search()">${withIco("search","Search")}</button><span id="tl" class="hide"><a id="otio" download>Timeline (.otio)</a> &nbsp; <a id="edl" download>EDL</a></span></div><div id="hits"></div></div>
  <div class="grid" id="grid"></div></div></div>`;
  window.cur=jid;window.curP=pid;window.focusClip=focusClip;
+ $("narbtn").onclick=()=>narrationModal(jid);
+ $("wcbtn").onclick=()=>webcamPicker(jid,()=>webcamChosen(jid));
  $("refind").onclick=async()=>{if(await confirmBox("Re-find moments","Pick moments again with the project's current goals? Edits on the old clips are replaced.","Re-find")){await api(`/api/jobs/${jid}/refind`,{method:"POST"});poll1()}};
- poll1()}
+ vsetInit(pid,jid);vplayInit(jid);poll1()}
+async function narrationModal(jid){
+ const [j,gs]=await Promise.all([jget("/api/jobs/"+jid),jget("/api/settings")]);
+ const n=(j.settings&&j.settings.narration)||{},g=gs.settings.narration||{};
+ const tri=(v)=>v===true?"1":v===false?"0":"";
+ const sel=(id,v,lab)=>`<label>${lab}<select data-${id}><option value="" ${tri(v)==""?"selected":""}>Same as Settings (${id=="on"?(g.enabled?"on":"off"):(g.title_caption?"show":"hide")})</option><option value="1" ${tri(v)=="1"?"selected":""}>${id=="on"?"On":"Show"}</option><option value="0" ${tri(v)=="0"?"selected":""}>${id=="on"?"Off":"Hide"}</option></select></label>`;
+ const voices=[["","Same as Settings"],["auto","Auto (matches the spoken language)"],["en-US-AndrewNeural","English, man (US)"],["en-US-AriaNeural","English, woman (US)"],["en-GB-RyanNeural","English, man (UK)"],["ar-EG-ShakirNeural","Arabic, man (Egypt)"],["ar-EG-SalmaNeural","Arabic, woman (Egypt)"],["ar-SA-HamedNeural","Arabic, man (Saudi)"],["es-ES-AlvaroNeural","Spanish, man"],["fr-FR-HenriNeural","French, man"],["de-DE-ConradNeural","German, man"]];
+ const m=modal(`<h3>Narration for this video</h3><p class="mu">Reads each clip's title at the start. Choices here beat Settings for every clip of this video. A single clip can still override them in its editor.</p>
+  <div class="form">${sel("on",n.on,"Narration")}${sel("cap",n.title_caption,"Title on screen while it is read")}
+  <label>Voice<select data-voice>${opt2(n.voice||"",voices)}</select></label>
+  <div class="volrow"><label class="vsw"><span class="glsw"><input type="checkbox" data-volset role="switch" ${n.vol?"checked":""}><i class="tr"></i><i class="kn"></i></span><span>Own volume for this video <small class="mu">(off = Settings: ${Math.round((g.volume||1)*100)}%)</small></span></label>
+   <label class="volsl ${n.vol?"":"dim"}">Narration volume <b class="mu" data-volv>${Math.round((n.vol||g.volume||1)*100)}%</b><input type="range" class="glrange" data-vol min="0.2" max="2" step="0.1" value="${n.vol||g.volume||1}" ${n.vol?"":"disabled"}></label></div></div>
+  <div class="mfoot"><button class="g" data-x>Cancel</button><button class="g" data-save>Save</button><button data-all>Save and re-render all clips</button></div>`);
+ const q=s=>m.box.querySelector(s);q("[data-x]").onclick=()=>m.close();
+ const vr=q("[data-vol]"),vs=q("[data-volset]");
+ const vf=()=>{vr.style.setProperty("--p",((vr.value-vr.min)/(vr.max-vr.min)*100)+"%");q("[data-volv]").textContent=Math.round(vr.value*100)+"%"};
+ vr.oninput=vf;vf();vs.onchange=()=>{vr.disabled=!vs.checked;q(".volsl").classList.toggle("dim",!vs.checked)};
+ const tv=s=>{const v=q(s).value;return v==""?null:v=="1"};
+ const save=async()=>{const body={on:tv("[data-on]"),title_caption:tv("[data-cap]"),voice:q("[data-voice]").value,vol:vs.checked?+vr.value:""};
+  Object.keys(body).forEach(k=>{if(body[k]===null)delete body[k]});
+  const r=await post(`/api/jobs/${jid}/narration`,body);if(!r.ok){toast("Could not save","err");return false}m.close();return true};
+ q("[data-save]").onclick=async()=>{if(await save())toast("Saved. New renders use it.")};
+ q("[data-all]").onclick=async()=>{if(await save()){await api(`/api/jobs/${jid}/rerender-all`,{method:"POST"});toast("Re-rendering all clips")}}}
 function poll1(){poll(async()=>{if(view!="video")return;const j=await jget("/api/jobs/"+cur);paint(j);},1000)}
 
 function subRow(x){
  const pct=Math.round(x.f*100),cls=x.state=="run"?(x.unk?"unk":"on"):x.state;
  const right=x.state=="skip"?"skipped":(x.state=="wait"?"":(x.unk&&x.state=="run"?"working":pct+"%"));
  return `<div class="sub ${cls}"><div class="t"><span>${esc(x.name)}</span><span>${right}</span></div><div class="bar sm"><b style="width:${x.state=="done"||x.state=="skip"?100:pct}%"></b></div>${x.detail&&x.state!="wait"?`<div class="dt">${esc(x.detail)}</div>`:""}</div>`}
-function setHTML(id,h){const e=$(id);if(e&&e.dataset.h!==h){e.dataset.h=h;e.innerHTML=h}}
+function setHTML(id,h){const e=$(id);if(e)morphInto(e,h)}
 function paint(j){
  const running=["running","queued"].includes(j.state),done=j.state=="done";
  const stages=STAGES.map((s,i)=>{const st=done||i<j.stage?"d":(i==j.stage&&running?"a":"");const pct=st=="d"?100:(st=="a"?Math.round(j.sp*100):0);
   const subs=st=="a"&&j.subs?j.subs.map(subRow).join(""):"";
-  return `<div class="step ${st}"><div class="t"><span>${i+1}. ${s}</span><span>${st?pct+"%":""}</span></div><div class="bar"><b style="width:${pct}%"></b></div>${subs?`<div class="subs">${subs}</div>`:""}</div>`}).join("");
- const warn=running&&j.idle>20?`<div class="warn">No new data for ${j.idle}s. The site may be throttling. Cancel and retry, or lower Download quality in Settings.</div>`:"";
+  return `<div class="step ${st}"><div class="t"><span>${i+1}. ${s}</span><span>${st?pct+"%":""}${running?"":`<button class="rdo" title="Redo this step" aria-label="Redo ${s}" onclick="redoStep(${i})">${ico("play",11)}</button>`}</span></div><div class="bar"><b style="width:${pct}%"></b></div>${subs?`<div class="subs">${subs}</div>`:""}</div>`}).join("");
+ const stepName=["Get video","Transcribe","Find moments","Crop + captions","Export"][j.stage]||"this step";
+ const retryBtn=`<button class="g sm" onclick="retryStep()">${withIco("play","Retry "+stepName.toLowerCase(),12)}</button>`;
+ const warn=running&&j.idle>20?(j.stage==0
+  ?`<div class="warn">No new data for ${j.idle}s. The site may be throttling. Retry, or lower Download quality in Settings.<div style="margin-top:8px">${retryBtn}</div></div>`
+  :`<div class="note">Still working: ${esc(j.note||stepName)}. This step can be quiet for a few minutes (a local AI model or the speech model may be busy). If nothing changes after ${j.idle>300?"a while":"5 minutes"}, you can retry it.<div style="margin-top:8px">${j.idle>120?retryBtn:""}</div></div>`):"";
  const state=done?"Finished":(j.state=="cancelled"?"Cancelled":(j.state=="interrupted"?"Interrupted by an app restart":(j.state=="error"?"Failed":esc((j.note||"Starting")+(j.detail?" · "+j.detail:"")))));
  setHTML("pipe",`<div class="overall"><div class="t"><b>Overall</b><b>${Math.round(j.overall||0)}%</b></div><div class="bar big ${running?"rgb":""}"><b style="width:${j.overall||0}%"></b></div><div class="now">${state}</div>${warn}${running?`<button class="g cx" onclick="cancelJob()">Cancel</button>`:(["interrupted","cancelled","error"].includes(j.state)?`<button class="cx" onclick="resumeJob()">Resume</button>`:"")}</div>${stages}`);
  setHTML("info",j.info?fmt(j.info.duration)+" · "+j.info.width+"x"+j.info.height:"");
+ if(j.title)setTitle(j.title.slice(0,50));
  $("jt").textContent=j.title||"";$("vt").textContent=(j.title||"Video").slice(0,60);
+ if(window.vplayUpdate)vplayUpdate(j);
  setHTML("jchips",`<span class="chip">${j.settings.mode}</span><span class="chip">${j.clips.length} moments</span><span class="chip">${j.state}</span>`);
  const br=j.brief||{};setHTML("goals",(br.ideas||[]).length?`<span class="mu small">Looking for:</span> `+br.ideas.map(i=>`<span class="chip">${esc(i)}</span>`).join(""):"");
+ {const need=j.state=="done"&&j.webcam&&j.webcam.checked&&!j.webcam.box&&["auto","stack"].includes((j.settings||{}).layout)&&(j.settings||{}).mode!="podcast"&&!j.webcam.manual;
+  setHTML("wcask",need?`<div class="note">Could not find the webcam in this video, so clips show the whole screen. <button class="sm" onclick="webcamPicker(cur,()=>webcamChosen(cur))">Choose the webcam</button> <span class="mu small">If there is no webcam, ignore this.</span></div>`:"")}
  setHTML("jerr",j.error?esc(j.error):"");setHTML("jlog",(j.log||[]).slice(-6).map(esc).join("<br>"));
  $("rbtn").classList.toggle("hide",!j.clips.some(c=>c.approved&&["pending","error"].includes(c.status)));
  $("tl").classList.toggle("hide",!j.clips.some(c=>c.status=="done"));$("otio").href=`/files/${j.id}/timeline.otio`;$("edl").href=`/files/${j.id}/timeline.edl`;
@@ -339,6 +408,14 @@ async function deleteClip(jid,cid,after){
 async function renderPending(){await api(`/api/jobs/${cur}/render`,{method:"POST"})}
 async function rerenderAll(){if(await confirmBox("Re-render all clips","Render every kept clip again?","Re-render"))await api(`/api/jobs/${cur}/rerender-all`,{method:"POST"})}
 async function cancelJob(){if(await confirmBox("Cancel this video","Stop processing this video?","Cancel video")){await api(`/api/jobs/${cur}/cancel`,{method:"POST"})}}
+async function retryStep(){
+ const j=await jget("/api/jobs/"+cur);const step=j.stage||0;
+ if(!await confirmBox("Retry this step","Stop what is running now and start this step again? Earlier finished steps are kept.","Retry"))return;
+ toast("Stopping, then starting again...");
+ await api(`/api/jobs/${cur}/cancel`,{method:"POST"});
+ for(let i=0;i<60;i++){await new Promise(r=>setTimeout(r,1000));const x=await jget("/api/jobs/"+cur).catch(()=>null);if(x&&!["running","queued"].includes(x.state))break}
+ const r=await post(`/api/jobs/${cur}/redo`,{step,through_end:true});
+ if(r.ok){toast("Started again");if(typeof poll1=="function")poll1()}else toast((await r.json().catch(()=>({}))).detail||"Could not restart. The step may still be finishing, try again in a moment.","err")}
 async function resumeJob(){await api(`/api/jobs/${cur}/resume`,{method:"POST"})}
 async function search(){const q=$("q").value.trim();if(!q||!cur)return;
  const r=await (await api(`/api/jobs/${cur}/search?q=`+encodeURIComponent(q))).json();
@@ -348,7 +425,8 @@ async function sched(id){const w=document.querySelector(`#clip${id} .when`).valu
  const r=await post(`/api/jobs/${cur}/clips/${id}/schedule`,{when:w});toast(r.ok?"Scheduled for YouTube (private). Keep Clipsurge running.":"Failed",r.ok?"":"err")}
 async function up(id){const s=await (await api("/api/youtube")).json();
  if(!s.client_file){toast("Add your Google OAuth file at secrets/client_secret.json first (see README)","err");return}
- if(!s.connected){const r=await api("/api/youtube/connect",{method:"POST"});if(!r.ok){toast((await r.json()).detail,"err");return}}
- const r=await api(`/api/jobs/${cur}/clips/${id}/upload`,{method:"POST"});if(!r.ok)toast((await r.json()).detail,"err");else toast("Uploaded")}
+ if(!s.connected){toast("Finish signing in on the Google page that opened...");const r=await api("/api/youtube/connect",{method:"POST"});if(!r.ok){toast((await r.json()).detail,"err");return}}
+ const r=await api(`/api/jobs/${cur}/clips/${id}/upload`,{method:"POST"});
+ if(!r.ok)toast((await r.json()).detail,"err");else{toast("Upload started. Progress is in the box at the bottom right.");if(window.upKick)upKick()}}
 
 initChrome();initTheme();refreshStatus();setInterval(refreshStatus,30000);route();

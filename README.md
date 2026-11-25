@@ -1,60 +1,88 @@
 # Clipsurge
 
-Any video in, share-ready vertical shorts out. Runs locally on your PC.
-Copyright (c) 2026 unlimitedera. All Rights Reserved (see LICENSE).
+Turn long videos into short vertical clips. Clipsurge finds the best moments, crops them to 9:16, adds captions, and exports them, all on your own computer.
 
-## Run
-Double-click `start.bat` (opens http://127.0.0.1:8420), or:
-`.venv\Scripts\python.exe -m clipsurge.server`
+![Projects](docs/screenshots/01-projects.png)
 
-## Flow
-Get video (yt-dlp) -> Transcribe (faster-whisper, GPU) -> Find moments (audio energy,
-speech, keywords, optional local LLM) -> Smart crop (OpenCV face follow or blurred fit)
--> Word-by-word captions -> Loudness normalize -> MP4 1080x1920.
+> **Copyright (c) 2026 unlimitedera. All Rights Reserved.** Clipsurge is proprietary software. You may look at the source code on GitHub, but you may not use, copy, modify, share or sell it without written permission from the author. See [LICENSE](LICENSE) and [TERMS.md](TERMS.md).
 
-## Local AI (optional)
-Start LM Studio's server (127.0.0.1:1234). Clipsurge uses it for titles, hashtags and
-better scoring. Without it, scoring still works. Override with CLIPSURGE_LLM.
+## Install (one PowerShell command)
 
-## YouTube upload
-1. Google Cloud console: create a project, enable "YouTube Data API v3".
-2. Create OAuth client ID, type Desktop app, download the JSON.
-3. Save it as `secrets/client_secret.json`. Click "Upload to YouTube" and sign in once.
-Uploads default to private. Unverified Google projects can only post private videos
-until the app passes Google's audit.
+Open **PowerShell** and run:
 
-## Status
-- Done: pipeline, dashboard with per-step progress, webcam+gameplay layout, YouTube upload (untested without your credentials)
-- Next: scheduler, TikTok and Instagram, MCP wrapper
+```powershell
+irm https://raw.githubusercontent.com/unlimitedera/Clipsurge/main/install.ps1 | iex
+```
 
-## Repo map (what is really used)
-Used in code: yt-dlp (download, chat replay), OpenCV (faces, webcam detection, crop),
-faster-whisper (word timestamps, stands in for whisper-timestamped), ffmpeg-normalize
-(-14 LUFS), OpenTimelineIO (.otio + EDL export), RapidOCR (on-screen text, stands in
-for PaddleOCR), ASS captions (open in Aegisub), NVENC/ffmpeg encode (stands in for
-Shutter Encoder), obs-websocket (record from OBS).
-Ideas reimplemented, no code copied (AGPL/unlicensed): gaming-clip (webcam stack),
-Stream-clipper (chat spikes), Chopify (scoring), StoryToolkitAI (transcript search).
-Not included yet (heavy ML, optional later): BoxMOT, SAM 2, SpeechBrain, Moment-DETR,
-Ultimate Vocal Remover, Decord. GUI apps (OpenCut, Aegisub, VideoCaptioner) are
-export targets, not dependencies.
+It installs Python 3.11 and ffmpeg if you do not have them, sets everything up in `%LOCALAPPDATA%\Clipsurge`, adds a Desktop shortcut, and opens Clipsurge in your browser at `http://127.0.0.1:8420`. Run the same command again any time to update. Your projects, videos and keys are kept.
 
-## Settings tab
-Connect any OpenAI-compatible model or agent (LM Studio, Ollama, llama.cpp, OpenRouter, OpenAI,
-or an agent API), choose which one rates moments and which one handles search, set defaults,
-toggle features, pick the speech model, encoder, loudness and caption size, and enter OBS and
-YouTube options. API keys are stored in data/settings.json (not committed) and shown masked.
+Full guide, options and troubleshooting: [docs/INSTALL.md](docs/INSTALL.md)
 
-## Agent control (MCP)
-`python -m clipsurge.mcp_server` exposes create_job, list_jobs, get_job, search_moments,
-add_clip, render_pending, upload_to_youtube. The Settings tab shows the config to paste into
-an agent's MCP settings. Requires `mcp<2`.
+## What it does
 
-## Projects, goals, editor
-- Projects tab: each project has goals ("what to look for", "skip these"), defaults, and many videos.
-  Videos come from links, files picked on this PC, uploads, or OBS recordings. Goals boost matching
-  moments (word overlap, plus the AI when connected) and label clips with the matched idea.
-- Clip editor (Edit on any clip): timing (loudness map, drag handles, word-accurate cuts), crop
-  (auto, webcam+gameplay, gameplay, whole screen, follow face, manual box with optional pan),
-  captions (style, position, size, color, words per line, fix wording), sound (volume, noise
-  reduction, voice effects, bass/treble, music with ducking, mute), look (speed, fades, colour).
+| | |
+|---|---|
+| **Find the best moments** | Reads the speech, loudness, on-screen text and YouTube chat spikes. An optional local AI model rates the moments and writes titles. |
+| **Projects with goals** | Tell it what to look for ("clutch plays", "funny reactions") and what to skip. Every video in the project follows those goals. |
+| **Smart vertical crop** | Webcam on top with gameplay below, centre slice, whole screen with blur, follow a face, **cut to whoever is speaking**, or place the crop yourself. |
+| **Captions** | Word by word captions in several styles, in any language, including Arabic and other right to left languages. |
+| **Title narration** | A voice reads the clip title at the start, with the title shown on screen if you like. |
+| **Manual clipping** | Watch the full video and mark your own clips on a loudness timeline. |
+| **Editor** | Timing, crop, captions, sound (noise reduction, voice effects, music with ducking), look (speed, fades, colour). |
+| **Upload** | Send clips to YouTube Shorts with a live progress box. |
+| **Agents** | Control everything from Hermes, Claude Code or any MCP client. |
+| **Private** | Videos, transcripts and clips stay on your computer. |
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Video page](docs/screenshots/03-video-page.png) | ![Clips](docs/screenshots/05-clips.png) |
+| **A video**: pipeline steps with a redo button on each, per video goals, webcam picker | **Clips**: scored moments with captions already burned in |
+| ![Manual clipper](docs/screenshots/06-manual-clipper.png) | ![Editor](docs/screenshots/07-editor-crop.png) |
+| **Manual clipper**: mark parts on the loudness timeline, choose crop and captions | **Clip editor**: crop styles including cut to speaker |
+| ![Overview](docs/screenshots/02-overview.png) | ![Webcam picker](docs/screenshots/16-webcam-picker.png) |
+| **Overview**: status, minutes reviewed, ranking | **Webcam picker**: drag a box when the webcam is not found |
+| ![Upload box](docs/screenshots/17-upload-tray.png) | ![Transfers](docs/screenshots/15-transfers.png) |
+| **Upload box**: live progress and the link when done | **Transfers**: uploads and downloads history |
+| ![Settings](docs/screenshots/09-settings-ai.png) | ![Narration](docs/screenshots/10-settings-narration.png) |
+| **Settings**: categories with search | **Narration** settings |
+
+The screenshots use demo videos made from synthetic speech. No personal data is shown.
+
+## Quick start
+
+1. **Create a project.** Projects > New project. Pick a video type (Auto, Gaming, Podcast, Tutorial) and add what to look for.
+2. **Add videos.** Press **Add video** on the project card. Paste links (YouTube, Twitch and more), pick files from your PC, or upload.
+3. **Wait for the pipeline.** Get video, transcribe, find moments, crop and captions, export. Each step shows live progress.
+4. **Review the clips.** Open a video, play the clips, edit any of them, delete the ones you do not want.
+5. **Upload or download.** Use the MP4 link, or **Upload to YouTube**.
+
+The step by step tutorials are in [docs/USAGE.md](docs/USAGE.md).
+
+## Requirements
+
+- Windows 10 or 11 (64 bit)
+- About 6 GB of free disk space for the install, plus space for your videos
+- 8 GB RAM or more. A graphics card from NVIDIA makes speech to text several times faster, but it is not required.
+- An internet connection to install, to download videos from links, and for narration voices
+
+## Connect an AI model (optional)
+
+Everything works without one. To get smarter ratings, titles and moment search, open **Settings > AI and agents** and connect any OpenAI compatible model: LM Studio, Ollama, llama.cpp (Clipsurge can run one for you), or a cloud provider.
+
+## Control it from an agent
+
+Settings > AI and agents > Agent control (MCP) shows the exact command for Hermes, Claude Code and Claude Desktop. Agents can create projects, add videos, check progress, search moments, add clips and upload.
+
+## Credits
+
+Clipsurge is built on many open source projects: yt-dlp, FFmpeg, faster-whisper, OpenCV, YuNet, RapidOCR, FastAPI, llama.cpp and more. Full list with licenses: [CREDITS.md](CREDITS.md). It is also in the app under **Settings > About > Credits**.
+
+## Author
+
+Created by **unlimitedera**.
+
+## License
+
+Copyright (c) 2026 unlimitedera. All Rights Reserved. See [LICENSE](LICENSE). To ask for permission to use Clipsurge, open an issue on this repository or contact the author through GitHub.

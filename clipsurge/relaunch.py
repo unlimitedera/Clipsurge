@@ -4,7 +4,8 @@ import socket, subprocess, sys, time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PORT = 8420
+import os
+PORT = int(os.environ.get("CLIPSURGE_PORT") or 8420)
 
 def port_busy():
     with socket.socket() as s:

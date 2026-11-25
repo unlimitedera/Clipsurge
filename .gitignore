@@ -5,3 +5,8 @@ __pycache__/
 client_secret.json
 token*.json
 secrets/
+tools/
+_demo/
+*.tmp
+data/
+.hermes/

@@ -3,7 +3,7 @@ import os, shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA = ROOT / "data"
+DATA = Path(os.environ.get("CLIPSURGE_DATA") or (ROOT / "data"))
 JOBS = DATA / "jobs"
 WEB = ROOT / "web"
 JOBS.mkdir(parents=True, exist_ok=True)
@@ -15,7 +15,8 @@ def _find(name):
     p = shutil.which(name)
     if p:
         return p
-    for d in (Path.home() / "AppData/Local/Microsoft/WinGet/Links",):
+    dirs = [Path.home() / "AppData/Local/Microsoft/WinGet/Links", *sorted((ROOT / "tools").glob("ffmpeg*/bin"))]
+    for d in dirs:
         c = d / (name + ".exe")
         if c.exists():
             return str(c)

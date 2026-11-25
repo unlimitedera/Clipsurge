@@ -48,7 +48,7 @@ def refind_moments(job_id: str) -> dict:
 @mcp.tool()
 def create_job(source: str, mode: str = "auto", count: int = 5, layout: str = "auto") -> dict:
     """Start clipping a video. source = URL or local file path. mode: auto|gaming|podcast|tutorial.
-    layout: auto|stack|game|fit|follow. Returns the job; poll with get_job."""
+    layout: auto|stack|game|fit|follow|speaker (cut to whoever is talking). Returns the job; poll with get_job."""
     return _brief(_call("POST", "/api/jobs", data={"url": source, "mode": mode, "count": count, "layout": layout}))
 
 @mcp.tool()

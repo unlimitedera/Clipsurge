@@ -8,6 +8,20 @@ const post=(u,b)=>api(u,{method:"POST",headers:{"Content-Type":"application/json
 const jget=async u=>{const r=await fetch(u);if(!r.ok)throw new Error((await r.json().catch(()=>({}))).detail||r.status);return r.json()};
 const ago=ts=>{const d=Date.now()/1000-ts;return d<90?"just now":d<3600?Math.round(d/60)+" min ago":d<86400?Math.round(d/3600)+" h ago":Math.round(d/86400)+" d ago"};
 
+/* update a container's DOM in place (no flicker, CSS transitions such as progress bars keep running) */
+function morphInto(el,html){if(el.dataset.h===html)return;el.dataset.h=html;const t=document.createElement("div");t.innerHTML=html;morph(el,t)}
+function morph(a,b){
+ const ca=[...a.childNodes],cb=[...b.childNodes];
+ cb.forEach((y,i)=>{const x=ca[i];
+  if(!x){a.appendChild(y.cloneNode(true));return}
+  if(x.nodeType!==y.nodeType||(x.nodeType==1&&x.tagName!==y.tagName)){a.replaceChild(y.cloneNode(true),x);return}
+  if(x.nodeType==3){if(x.nodeValue!==y.nodeValue)x.nodeValue=y.nodeValue;return}
+  if(x.nodeType!=1)return;
+  [...x.attributes].forEach(at=>{if(!y.hasAttribute(at.name))x.removeAttribute(at.name)});
+  [...y.attributes].forEach(at=>{if(x.getAttribute(at.name)!==at.value)x.setAttribute(at.name,at.value)});
+  morph(x,y)});
+ while(a.childNodes.length>cb.length)a.removeChild(a.lastChild)}
+
 function toast(msg,kind){
  let box=$("toasts");if(!box){box=document.createElement("div");box.id="toasts";box.setAttribute("aria-live","polite");document.body.appendChild(box)}
  const t=document.createElement("div");t.className="toast "+(kind||"");t.textContent=msg;box.appendChild(t);setTimeout(()=>t.remove(),kind=="err"?6000:3200)}

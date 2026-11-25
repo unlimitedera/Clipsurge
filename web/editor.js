@@ -1,8 +1,10 @@
 /* Copyright (c) 2026 unlimitedera. All Rights Reserved. Clip editor: timing, crop, captions, sound, look. */
+let GN={enabled:false,title_caption:false};const loadGN=()=>jget("/api/settings").then(r=>{GN={...GN,...(r.settings.narration||{})}}).catch(()=>{});loadGN();
 const VOICES=[["","None"],["deep","Deep"],["high","High"],["chipmunk","Chipmunk"],["monster","Monster"],["robot","Robot"],["radio","Radio"],["telephone","Telephone"],["megaphone","Megaphone"],["echo","Echo"],["stadium","Stadium"]];
-const LAYOUTS=[["","Project default","Uses the crop chosen for the video"],["auto","Auto","Finds the webcam, else follows the action"],["stack","Webcam + gameplay","Webcam on top, game below"],["game","Gameplay only","Centered vertical slice of the screen"],["fit","Whole screen","Full frame over a blurred copy"],["follow","Follow face","Keeps the speaker in frame"],["manual","Manual crop","You place the crop box, optionally pan across the clip"]];
+const LAYOUTS=[["","Project default","Uses the crop chosen for the video"],["auto","Auto","Finds the webcam, else follows the action"],["stack","Webcam + gameplay","Webcam on top, game below"],["game","Gameplay only","Centered vertical slice of the screen"],["fit","Whole screen","Full frame over a blurred copy"],["follow","Follow face","Keeps one face in frame"],["speaker","Cut to speaker","Hard cuts to whoever is talking, no camera movement"],["manual","Manual crop","You place the crop box, optionally pan across the clip"]];
 
 async function openEditor(jid,cid,onSaved){
+ loadGN();
  let job;try{job=await jget("/api/jobs/"+jid)}catch(e){toast("Cannot open editor","err");return}
  const clip=job.clips.find(c=>c.id==cid);if(!clip)return;
  const S={jid,cid,job,start:clip.start,end:clip.end,dur:job.info?.duration||clip.end+60,tab:"timing",
@@ -126,7 +128,8 @@ async function openEditor(jid,cid,onSaved){
    if(el.value.trim()&&el.value.trim()!==o.w)ed().word_edits[i]=el.value.trim();else delete ed().word_edits[i];el.size=Math.max(3,el.value.length)})}
 
  function sound(P){
-  const a=sub("audio");
+  const a=sub("audio"),nr=sub("narration"),clipTitle=S.job.clips.find(c=>c.id==S.cid)?.title||"",jn=S.job.settings?.narration||{};
+  const nOn=nr.on??jn.on??GN.enabled,nCap=nr.title_caption??jn.title_caption??GN.title_caption;
   P.innerHTML=`<div class="two">
    ${sl("Volume","gain",-12,12,1,a.gain||0," dB")}
    <div class="chks"><label class="chk"><input type="checkbox" data-a="denoise" ${a.denoise?"checked":""}><span>Reduce background noise</span></label>
@@ -135,9 +138,14 @@ async function openEditor(jid,cid,onSaved){
     <label class="chk"><input type="checkbox" data-a="normalize" ${a.normalize===false?"":"checked"}><span>Auto loudness balance <small class="mu">(turn off to keep your volume exactly)</small></span></label></div>
    ${sl("Bass","bass",-10,10,1,a.bass||0," dB")}${sl("Treble","treble",-10,10,1,a.treble||0," dB")}</div>
    <b>Voice effect</b><div class="chips">${VOICES.map(([k,t])=>`<button class="chip2 ${(a.voice||"")==k?"on":""}" data-voice="${k}">${t}</button>`).join("")}</div>
+   <b>Title narration</b><div class="two"><label class="chk"><input type="checkbox" data-nar="on" ${nOn?"checked":""}><span>Read a title at the start <small class="mu">(the original sound lowers while it talks)</small></span></label>
+    <label>Words to read <input type="text" dir="auto" data-nar="text" value="${esc(nr.text??clipTitle)}" ${nOn?"":"disabled"}></label>
+    <label class="chk"><input type="checkbox" data-nar="title_caption" ${nCap?"checked":""}><span>Show the title on screen while it is read</span></label></div>
+   <p class="mu small">Unset choices follow this video's narration, then Settings.</p>
    <b>Background music</b><div class="trow"><button class="g" data-music>${a.music?"Change file":"Choose a music file"}</button><span class="mu small grow">${a.music?esc(a.music.split("/").pop()):"None"}</span>${a.music?'<button class="g sm" data-nomusic>Remove</button>':""}</div>
    ${a.music?`<div class="two">${sl("Music volume","music_vol",5,100,5,Math.round((a.music_vol??0.25)*100),"%")}<label class="chk"><input type="checkbox" data-a="duck" ${a.duck===false?"":"checked"}><span>Lower the music when someone speaks</span></label></div>`:""}`;
   P.querySelectorAll("[data-a]").forEach(el=>el.onchange=()=>{a[el.dataset.a]=el.checked;lenInfo()});
+  P.querySelectorAll("[data-nar]").forEach(el=>el.onchange=()=>{const k=el.dataset.nar;nr[k]=el.type=="checkbox"?el.checked:el.value;if(k=="on")sound(P)});
   P.querySelectorAll("[data-k]").forEach(el=>{el.oninput=()=>{const k=el.dataset.k;a[k]=k=="music_vol"?el.value/100:+el.value;P.querySelector(`[data-v=${k}]`).textContent=el.value+(k=="music_vol"?"%":" dB")}});
   P.querySelectorAll("[data-voice]").forEach(b=>b.onclick=()=>{a.voice=b.dataset.voice||undefined;if(!b.dataset.voice)delete a.voice;sound(P)});
   P.querySelector("[data-music]").onclick=async()=>{const r=await pickFiles({kind:"audio",multi:false,title:"Choose background music",okLabel:"Use"});if(r&&r[0]){a.music=r[0];sound(P)}};
@@ -153,7 +161,7 @@ async function openEditor(jid,cid,onSaved){
  /* ---------------- save / render ---------------- */
  function payload(){
   const e=JSON.parse(JSON.stringify(S.ed));
-  for(const k of ["captions","audio","video","manual"]){if(e[k]&&!Object.keys(e[k]).length)delete e[k]}
+  for(const k of ["captions","audio","video","manual","narration"]){if(e[k]&&!Object.keys(e[k]).length)delete e[k]}
   if(e.layout!="manual")delete e.manual;
   return {start:S.start,end:S.end,edit:e}}
  async function save(render){

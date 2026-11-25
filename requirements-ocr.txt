@@ -1,0 +1,2 @@
+# installed with --no-deps: its own dependency on opencv-python would replace the headless build
+rapidocr-onnxruntime

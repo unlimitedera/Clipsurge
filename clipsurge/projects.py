@@ -18,10 +18,9 @@ def get(pid):
     return json.loads(_p(pid).read_text("utf-8"))
 
 def ensure_inbox():
-    """Every job belongs to a project. Older jobs and quick adds land in 'Inbox'."""
+    """No fixed project any more. Only repair old videos that lost their project field, if the old Inbox still exists."""
     if not _p("inbox").exists():
-        _save({"id": "inbox", "name": "Inbox", "description": "Videos added without a project",
-               "created": time.time(), "brief": {"ideas": [], "avoid": []}, "defaults": {}})
+        return
     for p in JOBS.glob("*/job.json"):
         try:
             j = json.loads(p.read_text("utf-8"))
@@ -36,6 +35,8 @@ def create(name, description="", brief=None, defaults=None):
           "description": description, "created": time.time(),
           "brief": _brief(brief), "defaults": _defaults(defaults)}
     _save(pr)
+    try: from . import library; library.sync_async()
+    except Exception: pass
     return pr
 
 def _lines(v):
@@ -70,4 +71,4 @@ def all_projects():
     for p in DIR.glob("*/project.json"):
         try: out.append(json.loads(p.read_text("utf-8")))
         except Exception: pass
-    return sorted(out, key=lambda x: (x["id"] != "inbox", -x["created"]))
+    return sorted(out, key=lambda x: -x["created"])

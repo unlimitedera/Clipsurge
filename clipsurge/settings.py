@@ -20,6 +20,7 @@ DEFAULTS = {
                        "enabled": True}],
         "roles": {"rating": "", "search": ""},     # "" = first enabled provider
     },
+    "narration": {"enabled": False, "voice": "auto", "volume": 1.0, "title_caption": False},
     "youtube": {"privacy": "private"},
     "obs": {"host": "localhost", "port": 4455, "password": ""},
 }
