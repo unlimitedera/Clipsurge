@@ -145,6 +145,8 @@ def _collect(it, T, duration):
                   f"{fmt_time(sg.end)} of {fmt_time(duration)} · {len(out)} phrases")
     return out
 
+ACTIVE = {}          # what is loaded right now (read by the "Loaded models" page)
+
 def transcribe(video, jobdir, log, T=None, duration=None, lang_req=None, model_req=None):
     jobdir = Path(jobdir)
     cache = jobdir / "transcript.json"
@@ -174,6 +176,7 @@ def transcribe(video, jobdir, log, T=None, duration=None, lang_req=None, model_r
               vad_parameters=dict(min_silence_duration_ms=500, speech_pad_ms=200))
     log("Speech: " + pl["reason"])
     raw = None
+    ACTIVE["speech"] = {"name": name, "device": "GPU" if pl["device"] == "cuda" else "CPU"}
     if pl["device"] == "cuda":
         try:
             T and T.set("Load speech model", None, f"Loading {name} on the GPU ({pl['compute_type']})")
@@ -191,6 +194,9 @@ def transcribe(video, jobdir, log, T=None, duration=None, lang_req=None, model_r
         T and T.done("Load speech model", f"{name} on CPU")
         segs_iter, info = model.transcribe(audio, **kw)
         raw = _collect(segs_iter, T, duration)
+    try: del model
+    except Exception: pass
+    import gc; gc.collect(); ACTIVE.pop("speech", None)                # hand the memory back as soon as the speech step is done
     segs, words = [], []
     dropped = 0
     for s in raw:

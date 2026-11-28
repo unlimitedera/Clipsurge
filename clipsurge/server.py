@@ -234,6 +234,20 @@ def memory():
             "llm": {"loaded": ls["running"], "ready": ls["ready"], "name": ls["file"]},
             "busy": len(busy), "storage": _dsize(DATA, 60)}
 
+@app.get("/api/models/loaded")
+def api_loaded():
+    from . import loaded
+    return loaded.listing()
+
+class OffIn(BaseModel):
+    id: str
+
+@app.post("/api/models/offload")
+def api_offload(b: OffIn):
+    from . import loaded
+    try: return loaded.offload(b.id)
+    except Exception as e: raise HTTPException(400, str(e))
+
 @app.post("/api/models/unload")
 def unload_models():
     """Unload what Clipsurge loaded (its managed local language model). Other apps' models are left alone."""

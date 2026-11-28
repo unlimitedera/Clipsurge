@@ -1,6 +1,6 @@
 /* Copyright (c) 2026 unlimitedera. All Rights Reserved. Settings tab. */
 let S=null,PRESETS={},MCPCFG={},YT={};
-const SCATS=[{id:"ai",name:"AI and agents",subs:[["local","Local models"],["conn","Connections"],["mcp","Agent control (MCP)"],["web","Internet access"]]},
+const SCATS=[{id:"ai",name:"AI and agents",subs:[["local","Local models"],["conn","Connections"],["mcp","Agent control (MCP)"],["web","Internet access"],["loaded","Loaded models"]]},
  {id:"clip",name:"Clipping",subs:[["defaults","Defaults for new clips"],["features","Features"],["censor","Bad language"]]},
  {id:"media",name:"Speech and video",subs:[["speech","Speech"],["video","Video"],["narration","Narration"]]},
  {id:"acct",name:"Accounts",subs:[["yt","YouTube"],["tt","TikTok"],["obs","OBS"],["rules","Platform rules"]]},
@@ -52,6 +52,7 @@ function renderSettings(){
   <label>Longest clip (s)<input type="number" id="d_maxlen" value="${S.defaults.maxlen}"></label>
   <label>Captions<select id="d_captions">${opt(S.defaults.captions,[["pop","Pop"],["clean","Clean"],["fire","Fire"],["off","Off"]])}</select></label></div></div>
 
+ <div class="card sec" data-cat="ai" data-sub="loaded" data-t="Loaded models memory offload unload vram running model"><h3>Loaded models</h3><div id="ldHost"></div></div>
  <div class="card sec" data-cat="ai" data-sub="web" data-t="Internet access SurgeAI web trending tags search online"><h3>Internet access for SurgeAI</h3>
   <label class="chk"><input type="checkbox" id="sa_web" ${(S.surgeai||{}).web===true?"checked":""}><span>Let SurgeAI use the internet <small class="mu">Off by default. When on, SurgeAI can look up trending tags, what people search for, popular videos on your topic, web search results and pages you paste. Only the search words and the links you paste are sent. Your videos, files and account data never leave your computer.</small></span></label>
   <label>Search API key (optional) <input type="password" id="sa_key" value="${(S.surgeai||{}).search_key||""}" placeholder="Brave Search API key" autocomplete="off"><small class="mu">Web search results are much better with a key. Get a free one at brave.com/search/api. It stays on this computer. Without a key I use a basic search that can be off-topic.</small></label>
@@ -129,7 +130,7 @@ function renderSettings(){
  <div id="setempty" class="mu sx-hide">No settings match your search.</div>
  <div class="savebar"><span id="savemsg" class="mu"></span><button onclick="saveSettings()">Save settings</button></div></div></div>`;
  document.getElementById("setq").oninput=e=>{SN.q=e.target.value;setView()};
- setView();renderModelHub();ytWire();settingsTitle();if(window.platFill)platFill();
+ setView();renderModelHub();if(window.renderLoaded)renderLoaded();ytWire();settingsTitle();if(window.platFill)platFill();
  document.querySelectorAll("input.glrange").forEach(r=>{const f=()=>{r.style.setProperty("--p",((r.value-r.min)/(r.max-r.min)*100)+"%");const v=document.getElementById(r.id+"_v");if(v)v.textContent=Math.round(r.value*100)+"%"};r.addEventListener("input",f);f()})}
 
 function setView(){
