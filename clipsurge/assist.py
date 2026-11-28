@@ -244,9 +244,10 @@ def existing_command(j, text):
     if pend:
         if YES.match(s):
             LAST.put(jid, pending=None)
-            return _delete_clip(jid, pend["cid"])
+            cids = pend.get("cids") or [pend["cid"]]
+            return "\n".join(_delete_clip(jid, x) for x in cids)
         if NO.match(s):
-            LAST.put(jid, pending=None); return f"Okay, I kept clip #{pend['cid']}."
+            LAST.put(jid, pending=None); return "Okay, I kept " + ("clips " + ", ".join("#" + str(x) for x in pend["cids"]) if pend.get("cids") else f"clip #{pend['cid']}") + "."
     if HOWQ.search(s) and not st.get("pending_rename") and not _re.search(r"\b(renam\w*|retitle|re-title)\b", s, _re.I): return None
     if pend_ren := st.get("pending_rename"):
         if NO.match(s): LAST.put(jid, pending_rename=None); return "Okay, I left it as it is."
@@ -263,7 +264,7 @@ def existing_command(j, text):
         if cid is None: return "Which clip? Tell me its number, for example **rename clip 20 to My new title**."
         m = (_re.search(r"[\"\u201c]([^\"\u201d]{2,95})[\"\u201d]", s) or _re.search(r"\b(?:to|as|into)\b\s*[:\-]?\s*(.{2,95})$", s, _re.I) or _re.search(r"[:=]\s*(.{2,95})$", s))
         if not m:
-            LAST.put(jid, pending_rename=cid, last=cid)
+            LAST.put(jid, pending_rename=cid, pending_rename_t=__import__("time").time(), last=cid)
             return f"What should clip **#{cid}** be called? Just type the new title."
         return _rename_clip(jid, cid, m.group(1))
     ref = _re.search(r"\b(?:talking about|meant|mean|i said|i meant|we (?:created|made|added)|you (?:created|made|added)|already|existing|that)\b.*?\bclip\s*(?:number|no\.?|id)?\s*#?(\d{1,3})\b", s, _re.I)
@@ -280,6 +281,13 @@ def existing_command(j, text):
         cid = st.get("last")
         if not cid: return "Which clip? Tell me the number, for example **rename clip 19 to My new title**."
         return _rename_clip(jid, cid, m.group(1))
+    mm_ = _re.search(r"\b(?:delete|remove|get rid of|trash|scrap)\s+(?:the\s+|these\s+|my\s+)?clips\s*#?(\d{1,3}(?:\s*(?:,|and|&)\s*#?\d{1,3})+)", s, _re.I)
+    if mm_:
+        ids_ = list(dict.fromkeys(int(x) for x in _re.findall(r"\d{1,3}", mm_.group(1))))
+        have = {c["id"]: c for c in j["clips"]}; bad = [i for i in ids_ if i not in have]
+        if bad: return f"There is no clip #{bad[0]} in this video. The clips here are: {', '.join('#' + str(i) for i in sorted(have))}."
+        LAST.put(jid, pending={"cids": ids_})
+        return "Delete " + ", ".join(f"**#{i}** (\"{(have[i].get('title') or '')[:35]}\")" for i in ids_) + "? This removes their files too. Say **yes** to confirm or **no** to keep them."
     m = DELETE_ID.search(s)
     cid = int(m.group(1)) if m else (st.get("last") if DELETE_IT.search(s) else None)
     if DELETE_IT.search(s) and not m and not cid: return "Which clip? Tell me the number, for example **delete clip 19**."
@@ -429,7 +437,7 @@ def answer(scope, sid, focus, messages):
         mc = agent.memory_command(last)
         if mc: yield mc; return
         from . import chatfacts
-        try: mc = chatfacts.meta("general", None, None, last)
+        try: mc = chatfacts.meta("general", None, None, last) or chatfacts.scope_facts("general", None, chatfacts.digits(last))
         except Exception as e: mc = f"I could not do that ({type(e).__name__}: {str(e)[:100]})."
         if mc: yield mc; return
     if j is not None and not HOWQ.search(last) and not _re.match(r"^\W*(?:how|what|why|which|who|give me|write|suggest|tell me|explain|should|is|are|does|do)\b", last, _re.I) and _re.search(r"\b(?:renam\w*|retitl\w*|delete|remove|trim|shorten|lengthen|re-?render|add|change|make|set|apply|insert|put|turn|convert|edit|fix|improve|speed|slow|replace|swap|cut)\b", last, _re.I) and _re.search(r"\bclips?\s*#?\d+|\b(?:this|the|that) (?:clip|video)\b|\b(?:it|them)\b$", last, _re.I):

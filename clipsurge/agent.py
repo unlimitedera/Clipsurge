@@ -218,7 +218,7 @@ def plan(j, text):
 LOOKS_ACTION = _re.compile(r"\b(clip\s*#?\d|rename|trim|shorten|lengthen|caption|crop|narrat|tags?\b|re-?render|make (?:it|clip))", _re.I)
 
 # ------------------------------------------------------------------ entry points
-def handle_video(j, sid, text):
+def _handle_video(j, sid, text):
     """Reply text when the message is something to DO on this video, else None (the model answers)."""
     from . import assist
     s = (text or "").strip(); st = assist.LAST.st(sid)
@@ -243,7 +243,7 @@ def handle_video(j, sid, text):
     if len(parts) > 1 and _re.search(r"\b(clip|rename|tag|trim|caption|crop|narrat|title|delete|render)", parts[0], _re.I) and not assist.HOWQ.search(s):
         return tracked(j, "several steps", lambda: run_chain(j, sid, parts))
     pend = st.get("pending")
-    label = f"delete clip {pend['cid']}" if pend and assist.YES.match(s) else s[:50]
+    label = (("delete clips " + ", ".join(str(x) for x in pend["cids"])) if pend and pend.get("cids") else f"delete clip {pend['cid']}") if pend and assist.YES.match(s) else s[:50]
     r = tracked(j, label, lambda: _one(j, sid, s))
     if r is not None: return r
     if LOOKS_ACTION.search(s) and not assist.HOWQ.search(s) and not _re.search(r"\?\s*$", s):
@@ -270,13 +270,18 @@ def handle_project(pid, text):
         return f"Undid the last project-wide change on {len(b)} video{'s' if len(b) != 1 else ''}.\n\n" + res[0]
     mc2 = __import__("clipsurge.chatfacts", fromlist=["x"]).meta("project", pid, None, s)
     if mc2: return mc2
+    from . import chatfacts
+    sf = chatfacts.scope_facts("project", pid, chatfacts.digits(s))
+    if sf: return sf
     if not PROJ_ALL.search(s) or assist.HOWQ.search(s): return None
     mc2 = __import__("clipsurge.chatfacts", fromlist=["x"]).meta("project", pid, None, s)
     if mc2: return mc2
     if _re.search(r"\b(delete|remove (?:the )?clips?|get rid|rename)\b", low):
         return "I do not delete or rename in bulk, because it is easy to regret. Open a video and ask me there, or name the clip you mean."
     ids = _jobs_of(pid)
-    if not ids: return "This project has no finished videos with clips yet."
+    if not ids:
+        busy = [x for x in jobs.list_jobs() if x.get("project") == pid and x.get("state") in ("running", "queued")]
+        return (f"{len(busy)} video{'s are' if len(busy) != 1 else ' is'} still processing, so I can't change {'their' if len(busy) != 1 else 'its'} clips yet. Ask me again when {'they have' if len(busy) != 1 else 'it has'} finished." if busy else "This project has no finished videos with clips yet.")
     done_clips = 0; vids = 0; first = None; changed = []
     for jid in ids:
         j = jobs.load(jid); before = snap(j)
@@ -322,3 +327,29 @@ def tips(scope, sid):
             if nt: out.append({"t": f"{nt} clip{'s' if nt != 1 else ''} in this project have no tags", "q": "add tags to all clips in this project"})
     except Exception: return out[:4]
     return out[:4]
+
+
+QUESTIONISH = _re.compile(r"^\W*(?:what|which|how|who|why|when|where|can|could|is|are|do|does|did|will|would|should|give|tell|show|list|find|any)\b", _re.I)
+COMMANDISH = _re.compile(r"\bclips?\s*#?\d|^\W*(?:rename|delete|trim|add|remove|set|undo|clip|make|upload|schedule|re-?render|turn|hide|change|open)\b", _re.I)
+NONLATIN = _re.compile(r"[\u0600-\u06ff\u0400-\u04ff\u4e00-\u9fff\u3040-\u30ff\u0900-\u097f]")
+
+def handle_video(j, sid, text):
+    """Entry point: clean up the message (digits, typos, 'the longest clip'), run it, and say how references were understood."""
+    import time
+    from . import assist, chatfacts
+    s = chatfacts.fix_typos(chatfacts.digits(text or "").strip())
+    st = assist.LAST.st(sid)
+    pr = st.get("pending_rename")
+    if pr:
+        assist.LAST.put(sid, pending_rename=None)
+        if assist.NO.match(s): return "Okay, I left it as it is."
+        fresh = time.time() - (st.get("pending_rename_t") or 0) < 300
+        if fresh and not QUESTIONISH.match(s) and not COMMANDISH.search(s) and len(s) <= 95:
+            return assist._rename_clip(sid, pr, s)
+    s2, notes, err = chatfacts.resolve_refs(j, s)
+    if err: return err
+    r = _handle_video(j, sid, s2)
+    if r is None and NONLATIN.search(s) and _re.search(r"\d", s):
+        return "I understand commands in English only for now. The numbers and times work as usual, for example **rename clip 4 to ...**, **trim clip 4 to 0:10-0:30**, **delete clip 4**. Ask **what can you do?** for the full list."
+    if r is not None and notes and not r.startswith("I could not"): r = "(" + "; ".join(notes) + ")\n\n" + r
+    return r

@@ -51,7 +51,7 @@ def problems(j, c):
 
 def facts(j, s, last_id):
     low = s.lower().strip(" ?!."); cl = _clips(j)
-    if not _re.match(r"^\W*(?:(?:ok(?:ay)?|so|hey|please|can you|could you|tell me|show me|give me|what|which|how|who|list|sort|compare|is|are|do|does|any|total|average)\b)", low): return None
+    if not _re.match(r"^\W*(?:(?:ok(?:ay)?|so|hey|please|can you|could you|tell me|show me|give me|what|which|how|who|list|sort|compare|is|are|do|does|any|total|average|summari[sz]e|describe|explain)\b)", low): return None
     if _re.search(r"\b(how (do|can|to|would)|why)\b", low): return None
     ids = _ids_in(s)
     if _re.search(r"\bcompare\b", low) and len(ids) >= 2:
@@ -318,9 +318,163 @@ def handle(j, sid, s, last_id):
     for fn in (upload, schedule_wrap(put)):
         r = fn(j, s, last_id)
         if r: return r
+    r = transcript_facts(j, s)
+    if r: return r
     r = facts(j, s, last_id)
     if r: return r
     return feel(j, sid, s, assist.do_clip)
 
 def schedule_wrap(put):
     return lambda j, s, last_id: schedule(j, s, last_id, put)
+
+
+# ------------------------------------------------------------------ typos, digits, "the longest clip", "the clip about X"
+ARABIC_DIGITS = {ord(c): str(i) for i, c in enumerate("٠١٢٣٤٥٦٧٨٩")}
+ARABIC_DIGITS.update({ord(c): str(i) for i, c in enumerate("۰۱۲۳۴۵۶۷۸۹")})
+def digits(s): return (s or "").translate(ARABIC_DIGITS)
+
+CMD_WORDS = ["rename", "retitle", "delete", "remove", "shorten", "lengthen", "captions", "caption", "narration", "schedule", "upload", "render", "rerender", "compare", "summarize"]
+def _osa(a, b):
+    d = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+    for i in range(len(a) + 1): d[i][0] = i
+    for k in range(len(b) + 1): d[0][k] = k
+    for i in range(1, len(a) + 1):
+        for k in range(1, len(b) + 1):
+            c = 0 if a[i - 1] == b[k - 1] else 1
+            d[i][k] = min(d[i - 1][k] + 1, d[i][k - 1] + 1, d[i - 1][k - 1] + c)
+            if i > 1 and k > 1 and a[i - 1] == b[k - 2] and a[i - 2] == b[k - 1]: d[i][k] = min(d[i][k], d[i - 2][k - 2] + 1)
+    return d[len(a)][len(b)]
+
+def fix_typos(s):
+    """Fix misspelled command words, only in the first three words (the command), never in titles."""
+    parts = s.split(" ")
+    for i in range(min(3, len(parts))):
+        w = _re.sub(r"[^a-z]", "", parts[i].lower())
+        if len(w) < 5 or w in CMD_WORDS: continue
+        best = min(CMD_WORDS, key=lambda c: _osa(w, c))
+        if _osa(w, best) <= (1 if len(w) == 5 else 2) and abs(len(w) - len(best)) <= 2: parts[i] = _re.sub(r"[A-Za-z]+", best, parts[i], count=1)
+    return " ".join(parts)
+
+ORD = {"first": 0, "second": 1, "third": 2, "fourth": 3, "fifth": 4, "sixth": 5, "seventh": 6, "eighth": 7}
+_ASKWHICH = _re.compile(r"^\W*(?:which|what)\b.{0,25}\b(best|longest|shortest|worst|highest|lowest|first|last|top|weakest|strongest)\b", _re.I)
+_WORDS = set("the a an and or of to in on at is it that this for with as be are was were i you he she we they my your me him her his them so just like um uh oh yeah okay ok then than but if about where says say said saying clip".split())
+
+def resolve_refs(j, s):
+    """'the longest clip' -> 'clip 5'. Returns (text, notes, error)."""
+    cl = sorted(_clips(j), key=lambda c: c["id"])
+    if not cl or _ASKWHICH.match(s): return s, [], None
+    notes = []; err = []
+    def pick(key):
+        if key in ("longest",): return max(cl, key=lambda c: c["end"] - c["start"])
+        if key in ("shortest",): return min(cl, key=lambda c: c["end"] - c["start"])
+        if key in ("worst", "lowest", "weakest"): return min(cl, key=lambda c: c.get("score") or 0)
+        return max(cl, key=lambda c: c.get("score") or 0)
+    def sub_ord(m):
+        i = ORD[m.group(1).lower()]
+        if i >= len(cl): err.append(f"There is no {m.group(1).lower()} clip. This video has {len(cl)} clip{'s' if len(cl) != 1 else ''}."); return m.group(0)
+        notes.append(f"the {m.group(1).lower()} clip is #{cl[i]['id']}"); return f"clip {cl[i]['id']}"
+    s2 = _re.sub(r"\b(?:the\s+)?(first|second|third|fourth|fifth|sixth|seventh|eighth)\s+clip\b", sub_ord, s, flags=_re.I)
+    def sub_last(m):
+        c = max(cl, key=lambda c: c["id"]); notes.append(f"the {m.group(1).lower()} clip is #{c['id']}"); return f"clip {c['id']}"
+    s2 = _re.sub(r"\b(?:the\s+)?(last|latest|newest|final|most recent)\s+clip\b", sub_last, s2, flags=_re.I)
+    def sub_sup(m):
+        c = pick(m.group(1).lower().split("-")[0].split(" ")[0]); notes.append(f"the {m.group(1).lower()} clip is #{c['id']}"); return f"clip {c['id']}"
+    s2 = _re.sub(r"\b(?:the\s+)?(longest|shortest|best|top|highest(?:[- ]scor\w+)?|strongest|worst|lowest(?:[- ]scor\w+)?|weakest)(?:\s+scoring)?\s+clip\b", sub_sup, s2, flags=_re.I)
+    def sub_with(m):
+        c = pick(m.group(1).lower()); notes.append(f"the clip with the {m.group(1).lower()} score is #{c['id']}"); return f"clip {c['id']}"
+    s2 = _re.sub(r"\bthe\s+clip\s+with\s+the\s+(best|highest|worst|lowest|top)\s+score\b", sub_with, s2, flags=_re.I)
+    def sub_about(m):
+        ph = m.group(1).strip(" \"'"); toks = [w for w in _re.findall(r"[a-z0-9']+", ph.lower()) if w not in _WORDS]
+        if not toks: err.append("Tell me a few words from the clip, or its number."); return m.group(0)
+        sc = []
+        for c in cl:
+            hay = ((c.get("text") or "") + " " + (c.get("title") or "")).lower()
+            sc.append((sum(1 for w in toks if w in hay), c))
+        sc.sort(key=lambda x: -x[0])
+        need = max(1, (len(toks) + 1) // 2)
+        if sc[0][0] < need or (len(sc) > 1 and sc[1][0] == sc[0][0]):
+            err.append(f"I could not tell which clip you mean by \"{ph[:60]}\". Use its number instead, for example **rename clip 4 to ...**."); return m.group(0)
+        notes.append(f"the clip about \"{ph[:40]}\" is #{sc[0][1]['id']}"); return f"clip {sc[0][1]['id']}"
+    s2 = _re.sub(r"\bthe\s+clip\s+(?:about|where\s+(?:\w+\s+)?(?:says?|said|talks? about|mentions?)|that\s+(?:says?|mentions?|talks? about))\s+(.+?)(?=\s+(?:to|and|then|please)\b|[,.?!]|$)", sub_about, s2, flags=_re.I)
+    return s2, notes, (err[0] if err else None)
+
+# ------------------------------------------------------------------ what was said, swearing, what a clip is about (from the transcript)
+def _tr(j):
+    from . import analyze
+    try: return analyze.load_transcript(jobs.JOBS / j["id"] / "transcript.json")
+    except Exception: return None
+
+def transcript_facts(j, s):
+    low = s.lower().strip(" ?!.")
+    m = _re.search(r"\b(?:say|said|saying|says|is said|was said)\b.{0,14}\b(?:at|around|near|in)\s+(\d{1,3}:\d{2})\b", low) or _re.search(r"\bwhat'?s\s+(?:said|happening|going on)\s+(?:at|around|near)\s+(\d{1,3}:\d{2})", low)
+    if m:
+        a, b = m.group(1).split(":"); t0 = int(a) * 60 + int(b); tr = _tr(j)
+        if not tr: return "I have no transcript for this video."
+        segs = [x for x in tr.get("segments", []) if x["e"] >= t0 - 4 and x["s"] <= t0 + 12]
+        if not segs: return f"Nothing is said around {m.group(1)}."
+        return f"Around **{m.group(1)}**:\n\n" + "\n".join(f"- {mm(x['s'])}: \"{x['text'].strip()[:200]}\"" for x in segs[:6])
+    if _re.search(r"\b(swear\w*|curs\w*|profan\w*|bad language|bad words?|expletives?|cuss\w*)\b", low) and _re.match(r"^\W*(?:is|are|does|do|did|any|how (?:much|many)|are there|is there|check|find|count)\b", low):
+        from . import censor
+        tr = _tr(j)
+        if not tr: return "I have no transcript for this video."
+        hits = [w for w in tr.get("words", []) if censor.is_curse(w["w"])]
+        if not hits: return "I found **no** curse words in the transcript."
+        times = ", ".join(mm(w["s"]) for w in hits[:8])
+        return f"I found **{len(hits)}** curse word{'s' if len(hits) != 1 else ''} in the transcript, for example at {times}{'...' if len(hits) > 8 else ''}. Turn on **Hide curse words** under Settings > Clipping > Bad language to star them out of captions. [[settings:clip/censor|Open that setting]]"
+    m = _re.search(r"\b(?:what(?:'s| is| does)?|summari[sz]e|describe|explain|read)\b.{0,25}?\bclip\s*#?(\d{1,3})\b", low)
+    if m and _re.search(r"\b(about|summari[sz]e|describe|say|says|in|read|explain|is)\b", low) and not _re.search(r"\b(wrong|problem|issue|score|long|length|tags?)\b", low):
+        c = next((x for x in _clips(j) if x["id"] == int(m.group(1))), None)
+        if not c: return f"There is no clip #{m.group(1)}. The clips are: {', '.join('#' + str(x['id']) for x in _clips(j))}."
+        txt = (c.get("text") or "").strip()
+        return f"Clip {line(c)}\n\nWhat is said in it:\n\n> {txt[:500] or 'I have no speech text for this clip.'}"
+    return None
+
+# ------------------------------------------------------------------ projects and the whole library (data, not guesses)
+HELP_PROJECT = ("In a project I can do this:\n\n- **Change every clip at once:** *add tags #gaming to every clip in this project*, *captions fire for all clips*, *set the crop to game for all clips*, *re-render all clips*. *Undo* takes the whole batch back.\n"
+    "- **Facts:** *list my videos*, *which video has the most clips*, *show the best clips in this project*, *how many clips do I have*, *what is the average score*.\n"
+    "- **Housekeeping:** *rename the project to ...*, *create a project called ...*, *open settings*.\n- **Memory:** *remember that ...*, *what do you remember about me*.\n\nFor edits on single clips (rename, trim, delete) open the video and ask me there. For ideas and advice just ask normally.")
+HELP_GENERAL = ("Outside a project I can do this:\n\n- **Facts:** *list my projects*, *list my videos*, *which video has the best clips*, *how many projects do I have*, *show my best clips*.\n"
+    "- **Housekeeping:** *create a project called ...*, *open project Gaming*, *open settings*, *open overview*, *open transfers*.\n- **Memory:** *remember that ...*, *what do you remember about me*.\n\nTo change clips, open a project (bulk changes) or a video (everything else) and ask me there. For ideas, tags and advice just ask normally.")
+
+def _vids(pid=None):
+    return [x for x in jobs.list_jobs() if pid is None or x.get("project") == pid]
+
+def _avg(cs):
+    sc = [c.get("score") or 0 for c in cs]; return round(sum(sc) / len(sc)) if sc else 0
+
+def scope_facts(scope, pid, s):
+    from . import projects
+    low = s.lower().strip(" ?!."); inproj = scope == "project"
+    if _re.search(r"\b(what can you do|what do you do|help|your (?:commands|abilities))\b", low): return HELP_PROJECT if inproj else HELP_GENERAL
+    m = _re.match(LEAD + r"open\s+(?:the\s+)?(settings|overview|transfers|projects|home)\b", low)
+    if m:
+        t = m.group(1); h = {"settings": "#/settings", "overview": "#/overview", "transfers": "#/transfers", "projects": "#/projects", "home": "#/projects"}[t]
+        return f"[[nav:{h}|Open {t}]]"
+    m = _re.match(LEAD + r"open\s+(?:the\s+)?(?:project\s+)?(.+?)(?:\s+project)?$", low)
+    if m and not _re.match(r"(settings|overview|transfers|projects|home|clip|video)", m.group(1)):
+        pr = _find_project(m.group(1))
+        if pr: return f"[[nav:#/p/{pr['id']}|Open {pr['name']}]]"
+    if _re.search(r"\b(delete|remove)\b.{0,12}\bproject\b", low): return "I do not delete projects, because that removes all its videos. Use the delete button on the project card. [[nav:#/projects|Open projects]]"
+    if _re.search(r"\b(projects?)\b", low) and _re.match(r"^\W*(?:what|which|list|show|how many|do i|my|tell)\b", low) and not _re.search(r"\b(this project|in this project)\b", low):
+        ps = projects.all_projects(); vs = _vids()
+        if _re.search(r"how many", low): return f"You have **{len(ps)}** project{'s' if len(ps) != 1 else ''} and {len(vs)} video{'s' if len(vs) != 1 else ''}."
+        return "Your projects:\n\n" + "\n".join(f"- **{p['name']}**: {len([v for v in vs if v.get('project') == p['id']])} video(s), {sum(len(v.get('clips') or []) for v in vs if v.get('project') == p['id'])} clips" for p in ps) if ps else "You have no projects yet. Say **create a project called ...**."
+    vs = _vids(pid if inproj else None)
+    if not vs and _re.match(r"^\W*(?:what|which|list|show|how many)\b", low) and _re.search(r"\b(videos?|clips?)\b", low): return "There are no videos here yet."
+    allc = [(v, c) for v in vs for c in (v.get("clips") or [])]
+    if _re.search(r"\b(list|show|what)\b.{0,15}\b(videos|my videos|all videos)\b|^\W*(?:list|show)\b.{0,10}\bvideos\b", low):
+        return "Videos:\n\n" + "\n".join(f"- **{v.get('title')}**{'' if inproj else ' (' + (projects.get(v.get('project') or 'inbox') or {}).get('name', '') + ')'}: {len(v.get('clips') or [])} clips, average score {_avg(v.get('clips') or [])}, {v.get('state')}" for v in vs)
+    if _re.search(r"\bhow many\b.{0,10}\bvideos\b", low): return f"There {'is' if len(vs) == 1 else 'are'} **{len(vs)}** video{'s' if len(vs) != 1 else ''}{' in this project' if inproj else ''}."
+    if _re.search(r"\bhow many\b.{0,10}\bclips\b", low): return f"There {'is' if len(allc) == 1 else 'are'} **{len(allc)}** clip{'s' if len(allc) != 1 else ''}{' in this project' if inproj else ''}."
+    if _re.search(r"\baverage\b.{0,12}\bscore\b", low): return f"The average clip score is **{_avg([c for _, c in allc])}** across {len(allc)} clips."
+    if _re.search(r"\b(most clips)\b", low) and vs:
+        v = max(vs, key=lambda v: len(v.get("clips") or [])); return f"**{v.get('title')}** has the most clips: {len(v.get('clips') or [])}."
+    if _re.search(r"\bwhich video\b.{0,25}\b(best|highest|top)\b", low) and vs:
+        v = max(vs, key=lambda v: _avg(v.get("clips") or [])); return f"**{v.get('title')}** has the highest average clip score: {_avg(v.get('clips') or [])}."
+    if _re.search(r"\b(best|top|highest|strongest|worst|lowest|weakest)\b.{0,15}\bclips?\b", low) and allc:
+        rev = not _re.search(r"worst|lowest|weakest", low)
+        top = sorted(allc, key=lambda x: x[1].get("score") or 0, reverse=rev)[:5]
+        return ("The best clips" if rev else "The weakest clips") + (" in this project" if inproj else "") + ":\n\n" + "\n".join(f"{i}. **#{c['id']}** \"{(c.get('title') or '')[:50]}\" (score {c.get('score') or 0}) from {v.get('title')}" for i, (v, c) in enumerate(top, 1))
+    if not inproj and _re.match(LEAD + r"(?:turn|set|add|rename|trim|delete|remove|change|make|re-?render|apply)\b", low) and _re.search(r"\b(clips?|narration|captions?|tags?|crop|everything)\b", low):
+        return "I change clips from a project or a video chat, because I need to know which clips you mean. Open a project and ask there (for example *add tags #gaming to every clip in this project*), or open a video for single clips. [[nav:#/projects|Open projects]]"
+    return None

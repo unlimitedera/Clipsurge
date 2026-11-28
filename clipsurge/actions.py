@@ -107,7 +107,7 @@ def do_tags(j, s, ids):
         if show: out.append(f"Clip **#{cid}** tags: {' '.join(have) or 'none yet'}"); continue
         if rem:
             ex = _explicit_tags(s)
-            keep = [] if (not ex or _re.search(r"\b(all|every)\b", low)) else [t for t in have if t.lstrip("#").lower() not in {e.lower() for e in ex}]
+            keep = [] if not ex else [t for t in have if t.lstrip("#").lower() not in {e.lower() for e in ex}]
             _save(jid, cid, lambda cc, k=keep: cc.__setitem__("tags", k)); out.append(f"Clip **#{cid}**: tags now {' '.join(keep) or 'none'}."); continue
         ex = _explicit_tags(s); src = "you gave me"
         if not ex:
@@ -128,7 +128,8 @@ def do_tags(j, s, ids):
             if len(tag) > 2 and tag.lower() not in [h.lower() for h in have + new]: new.append(tag)
         new = new[:8]; total = (have + new)[:15]
         _save(jid, cid, lambda cc, t_=total: cc.__setitem__("tags", t_))
-        out.append(f"Clip **#{cid}**: added {' '.join(new) or 'nothing new'} ({src}). All tags: {' '.join(total)}")
+        if not new and src == "you gave me" and not total: out.append(f"Clip **#{cid}**: I could not use those tags. A tag needs at least 2 letters or numbers, for example **add tags #gta #funny to clip {cid}**."); continue
+        out.append(f"Clip **#{cid}**: added {' '.join(new) or 'nothing new'} ({src}). All tags: {' '.join(total) or 'none'}")
     if needs_net: out.append("\nThese came from my model and the video only. With internet access I can also use trending tags and what people search for.\n\n[[settings:ai/web|Turn on internet access]]")
     return "\n".join(out) + ("" if show else "\n\nThey are saved on the clip and used when you upload it. Only keep ones that really describe the video: misleading tags break platform rules.")
 
@@ -157,6 +158,15 @@ def jid_of(j): return j["id"]
 def do_length(j, s, ids):
     jid = j["id"]; dur = float((j.get("info") or {}).get("duration") or 0); out = []; todo = []
     low = _re.sub(r"\bclips?\s*(?:number|no\.?|id|#)?\s*#?\d{1,3}(?:\s*(?:,|and|&)\s*#?\d{1,3})*", " ", s.lower())    # the clip number is not a time
+    NW = "one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty|thirty"
+    tl = _re.search(r"\btoo\s+(long|short)\b", low)
+    if tl and not _re.search(r"\d", low) and ids:
+        c0 = _ctx_clip(j, ids[0]); d0 = int(c0["end"] - c0["start"]); n0 = ids[0]
+        return (f"Clip **#{n0}** is {d0} s. " + (f"Tell me how much to cut, for example **make clip {n0} shorter by 10 seconds** or **trim clip {n0} to 25 seconds**." if tl.group(1) == "long"
+                else f"Tell me how much to add, for example **make clip {n0} longer by 10 seconds**."))
+    shs = _re.search(r"\b(?:start|begin)\w*\b\D{0,15}?(\d+(?:\.\d+)?|" + NW + r")\s*(?:seconds?|secs?|s)\s*(earlier|sooner|before|later|after)\b", low)
+    she = _re.search(r"\b(?:end|stop)\w*\b\D{0,15}?(\d+(?:\.\d+)?|" + NW + r")\s*(?:seconds?|secs?|s)\s*(earlier|sooner|before|later|after)\b", low)
+    lsec = _re.search(r"\bto\s+(\d+(?:\.\d+)?)\s*(?:seconds?|secs?|s)\b", low)
     rng = _re.search(r"(\d{1,3}:\d{2}|\d+(?:\.\d+)?)\s*(?:-|to|until|till)\s*(\d{1,3}:\d{2}|\d+(?:\.\d+)?)", low)
     by = _re.search(r"\bby\s+(\d+(?:\.\d+)?|" + "|".join(["one","two","three","four","five","six","seven","eight","nine","ten","fifteen","twenty","thirty"]) + r")\s*(?:seconds?|secs?|s)\b", low)
     st = _re.search(r"\b(?:start(?:s|ing)?|begin(?:s|ning)?)\s*(?:at|from|to)?\s*(\d{1,3}:\d{2}|\d+(?:\.\d+)?)", low)
@@ -164,6 +174,13 @@ def do_length(j, s, ids):
     for cid in ids:
         c = _ctx_clip(j, cid); a, b = c["start"], c["end"]
         if rng: a, b = _secs(rng.group(1)), _secs(rng.group(2))
+        elif shs or she:
+            for mm_, which in ((shs, "a"), (she, "b")):
+                if not mm_: continue
+                k = _num_words(mm_.group(1)) or float(mm_.group(1)); k = -k if mm_.group(2) in ("earlier", "sooner", "before") else k
+                if which == "a": a = c["start"] + k
+                else: b = c["end"] + k
+        elif lsec: b = a + float(lsec.group(1))
         elif by:
             k = _num_words(by.group(1)) or float(by.group(1))
             if _re.search(r"\b(longer|extend|lengthen|add|more)\b", low): b += k
@@ -258,7 +275,7 @@ def handle(j, text, last_id):
         return HELP
     if not s or HOW.search(s) and not _re.search(r"\bfor clip\b", low): return None
     pron = _re.search(r"\b(it|that|this|them)\b|\bthe (last|new|latest) (clip|one)\b", low)
-    verbs = {"tags": r"\b(tags?|hashtags?)\b", "length": r"\b(longer|shorter|extend|lengthen|shorten|trim|cut (?:it|the)|start(?:s|ing)? at|end(?:s|ing)? at|make it (?:\d+|longer|shorter))\b",
+    verbs = {"tags": r"\b(tags?|hashtags?)\b", "length": r"\b(longer|shorter|extend|lengthen|shorten|trim|cut (?:it|the)|start(?:s|ing)? at|end(?:s|ing)? at|make it (?:\d+|longer|shorter)|too (?:long|short)|to \d+(?:\.\d+)? ?(?:seconds?|secs?)|(?:start|begin|end)\w* [^.]{0,20}\b(?:earlier|later|sooner))\b",
              "captions": r"\b(captions?|subtitles?)\b", "crop": r"\b(crop|layout|framing|webcam on top|gameplay only|whole screen|follow (?:the )?face|cut to speaker)\b",
              "title": r"\b(better|new|improve|improved|viral|catchier|different)\b.*\b(title|name)\b|\b(title|name)\b.*\b(better|improve|catchier|viral)\b",
              "narr": r"\b(narrat\w*|voice ?over|read(?:s)? the title)\b", "cens": r"\b(bad language|curse|swear|profanity|censor)\b", "render": r"\b(re-?render|render again|redo|regenerate|re-?make)\b",
