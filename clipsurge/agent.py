@@ -124,11 +124,15 @@ def memory_command(text):
     return None
 
 # ------------------------------------------------------------------ chained requests
-VERBS = r"(?:rename|add|set|make|trim|shorten|lengthen|delete|give|turn|hide|re-?render|clip|undo|put|change|remove|captions?|crop)"
-SPLIT = _re.compile(r"\s*(?:,?\s+and\s+then\s+|,?\s+then\s+|;\s*|,?\s+and\s+also\s+|,?\s+and\s+(?=" + VERBS + r"\b)|,\s+(?=" + VERBS + r"\b))", _re.I)
+VERBS = r"(?:rename|add|set|make|trim|shorten|lengthen|delete|give|turn|hide|re-?render|clip(?=\s+(?:\d{1,3}:\d{2}|the part|the moment|number\s+\d|all\b|every\b))|undo|put|change|remove|captions?|crop)"
+SPLIT = _re.compile(r"\s*(?:,?\s+and\s+(?=clip\s*#?\d{1,3}\s+(?:to|as)\b)|,?\s+and\s+then\s+|,?\s+then\s+|;\s*|,?\s+and\s+also\s+|,?\s+and\s+(?=" + VERBS + r"\b)|,\s+(?=" + VERBS + r"\b))", _re.I)
 
 def split_commands(t):
-    return [x.strip(" .") for x in SPLIT.split(t or "") if x and x.strip(" .")]
+    parts = [x.strip(" .") for x in SPLIT.split(t or "") if x and x.strip(" .")]
+    for n in range(1, len(parts)):                    # "rename clip 3 to X and clip 4 to Y": the second part inherits the verb
+        if _re.match(r"clip\s*#?\d{1,3}\s+(?:to|as)\b", parts[n], _re.I) and _re.match(r"(?:rename|call|title|retitle)\b", parts[n - 1], _re.I):
+            parts[n] = "rename " + parts[n]
+    return parts
 
 def _one(j, sid, text):
     from . import assist
@@ -228,6 +232,13 @@ def handle_video(j, sid, text):
     mc = memory_command(s)
     if mc: return mc
     if UNDO.match(s): return undo(sid)
+    if (assist.YES.match(s) or assist.NO.match(s)) and not st.get("pending") and not st.get("sched"):
+        return "I am not waiting for an answer right now. Tell me what to do, for example **rename clip 3 to ...**, or ask **what can you do?**"
+    from . import chatfacts
+    try:
+        rf = chatfacts.handle(j, sid, s, st.get("last"))
+    except Exception as e: rf = f"I could not do that ({type(e).__name__}: {str(e)[:100]})."
+    if rf: return rf
     parts = split_commands(s)
     if len(parts) > 1 and _re.search(r"\b(clip|rename|tag|trim|caption|crop|narrat|title|delete|render)", parts[0], _re.I) and not assist.HOWQ.search(s):
         return tracked(j, "several steps", lambda: run_chain(j, sid, parts))
@@ -257,7 +268,11 @@ def handle_project(pid, text):
         if not b: return "There is no project-wide change to undo."
         res = [undo(x) for x in b]; assist.LAST.put(pid, batch=[])
         return f"Undid the last project-wide change on {len(b)} video{'s' if len(b) != 1 else ''}.\n\n" + res[0]
+    mc2 = __import__("clipsurge.chatfacts", fromlist=["x"]).meta("project", pid, None, s)
+    if mc2: return mc2
     if not PROJ_ALL.search(s) or assist.HOWQ.search(s): return None
+    mc2 = __import__("clipsurge.chatfacts", fromlist=["x"]).meta("project", pid, None, s)
+    if mc2: return mc2
     if _re.search(r"\b(delete|remove (?:the )?clips?|get rid|rename)\b", low):
         return "I do not delete or rename in bulk, because it is easy to regret. Open a video and ask me there, or name the clip you mean."
     ids = _jobs_of(pid)

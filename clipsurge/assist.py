@@ -221,8 +221,8 @@ def _clean_show(x): return x
 
 RENAME_ID = _re.compile(r"\b(?:rename|re-?title|retitle|call|title|name|change the (?:title|name) of|set the (?:title|name) of)\b.*?\bclip\s*(?:number|no\.?|id)?\s*#?(\d{1,3})\b\s*(?:to|as|into|:|-|=)?\s*(.+)$", _re.I)
 RENAME_IT = _re.compile(r"\b(?:rename|re-?title|retitle|call|name)\b.*?\b(?:it|that(?: clip| one)?|this(?: clip| one)?|the last (?:clip|one)|the new (?:clip|one))\b.*?\b(?:to|as|into)\b\s*(.+)$", _re.I)
-DELETE_ID = _re.compile(r"\b(?:delete|remove|get rid of|trash|scrap)\b.*?\bclip\s*(?:number|no\.?|id)?\s*#?(\d{1,3})\b", _re.I)
-DELETE_IT = _re.compile(r"\b(?:delete|remove|get rid of|undo|trash|scrap)\b.*?\b(?:it|that(?: clip| one)?|this(?: clip| one)?|the last (?:clip|one)|the new (?:clip|one))\b", _re.I)
+DELETE_ID = _re.compile(r"\b(?:delete|remove|get rid of|trash|scrap)\s+(?:the\s+|this\s+|that\s+|my\s+)?clip\s*(?:number|no\.?|id)?\s*#?(\d{1,3})\b", _re.I)
+DELETE_IT = _re.compile(r"\b(?:delete|remove|get rid of|trash|scrap)\s+(?:it|that(?: clip| one)?|this(?: clip| one)?|the last (?:clip|one)|the new (?:clip|one))\b", _re.I)
 YES = _re.compile(r"^\W*(yes|yeah|yep|yup|sure|ok|okay|do it|confirm|go ahead|delete it|please do)\W*$", _re.I)
 NO = _re.compile(r"^\W*(no|nope|nah|cancel|stop|never ?mind|don'?t|keep it)\W*$", _re.I)
 
@@ -240,6 +240,7 @@ def existing_command(j, text):
     """Rename or delete a clip that already exists, by id ('clip 19') or by pronoun ('it', 'that clip'). Returns a reply or None."""
     jid = j["id"]; st = LAST.st(jid); s = (text or "").strip()
     pend = st.get("pending")
+    if pend and not (YES.match(s) or NO.match(s)): LAST.put(jid, pending=None); pend = None     # an answer to a different question cancels it
     if pend:
         if YES.match(s):
             LAST.put(jid, pending=None)
@@ -427,8 +428,12 @@ def answer(scope, sid, focus, messages):
     elif scope == "general":
         mc = agent.memory_command(last)
         if mc: yield mc; return
-    if j is not None and _re.search(r"\b(renam\w*|retitl\w*|delete|remove|trim|shorten|lengthen|re-?render|add tags?|set the crop)\b", last, _re.I) and not HOWQ.search(last):
-        yield "I did not catch exactly what to change, so I changed nothing. Try for example **rename clip 20 to My title**, **delete clip 20**, or ask **what can you do?**"; return
+        from . import chatfacts
+        try: mc = chatfacts.meta("general", None, None, last)
+        except Exception as e: mc = f"I could not do that ({type(e).__name__}: {str(e)[:100]})."
+        if mc: yield mc; return
+    if j is not None and not HOWQ.search(last) and not _re.match(r"^\W*(?:how|what|why|which|who|give me|write|suggest|tell me|explain|should|is|are|does|do)\b", last, _re.I) and _re.search(r"\b(?:renam\w*|retitl\w*|delete|remove|trim|shorten|lengthen|re-?render|add|change|make|set|apply|insert|put|turn|convert|edit|fix|improve|speed|slow|replace|swap|cut)\b", last, _re.I) and _re.search(r"\bclips?\s*#?\d+|\b(?:this|the|that) (?:clip|video)\b|\b(?:it|them)\b$", last, _re.I):
+        yield "I do not have a command for that, so I changed nothing. I never pretend to do something I can't. Ask **what can you do?** to see everything I can do on this video."; return
     sysmsg = build(scope, sid, focus) + agent.prefs_text()
     sources = []
     from . import web as _web

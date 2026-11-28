@@ -244,6 +244,8 @@ HELP = ("Just tell me in plain words. I can do these, on this video:\n\n"
         "- **Several at once:** *clip 12:30 to 13:00, rename it to Funny moment and add tags #gta to it*. **Undo:** *undo* takes back my last change, even a deleted or added clip.\n"
         "- **Whole project:** open the project chat and say *add tags #gaming to every clip in this project* or *captions fire for all clips*.\n"
         "- **Memory:** *remember that I like short punchy titles*, *what do you remember about me*, *forget my preferences*. I also learn your usual crop, captions and clip length.\n"
+        "- **Facts and finding:** *which clip has the best score*, *sort my clips by length*, *total length of my clips*, *compare clip 3 and clip 4*, *what is wrong with clip 3*, *how many views did my last upload get*, *find the loudest part*, *clip the funniest part*.\n"
+        "- **Housekeeping:** *rename the project to ...*, *create a project called ...*, *move this video to project ...*, *change the title of the video to ...*, *open clip 3*, *upload clip 3 to youtube* (opens the upload step), *schedule clip 3 for tomorrow at 6pm*.\n"
         "- **Other:** *turn on narration for clip 5*, *hide the bad language in clip 5*, *re-render clip 5*, *what is clip 5*, *delete clip 5*.\n\n"
         "Say *it* or *that clip* for the clip I just worked on, or *all clips* for every clip. For ideas, tags and score advice just ask me normally.")
 HOW = _re.compile(r"\b(how (do|can|to|would|does)|why|explain|tell me how)\b", _re.I)

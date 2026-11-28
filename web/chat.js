@@ -15,7 +15,7 @@
   if(!w){close();return}
   if(!scope||scope.id!==w.id){const was=!!panel;close();scope=w;if(was)open()}else scope=w}
  function md(s){
-  s=esc(s).replace(/```([\s\S]*?)```/g,(_,c)=>`<pre>${c.trim()}</pre>`).replace(/`([^`\n]+)`/g,"<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g,"<b>$1</b>").replace(/\[\[settings:([\w\/]+)\|([^\]]+)\]\]/g,'<button class="askgo" data-go="$1">$2</button>').replace(/\[(\d+|[^\]\[]{1,40})\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s=esc(s).replace(/```([\s\S]*?)```/g,(_,c)=>`<pre>${c.trim()}</pre>`).replace(/`([^`\n]+)`/g,"<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g,"<b>$1</b>").replace(/\[\[nav:([^|\]]+)\|([^\]]+)\]\]/g,'<button class="askgo" data-nav="$1">$2</button>').replace(/\[\[upload:([^|\]]+)\|([^\]]+)\]\]/g,'<button class="askgo" data-up="$1">$2</button>').replace(/\[\[settings:([\w\/]+)\|([^\]]+)\]\]/g,'<button class="askgo" data-go="$1">$2</button>').replace(/\[(\d+|[^\]\[]{1,40})\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
   const out=[];let list=null;
   for(const raw of s.split("\n")){
    let m;
@@ -46,6 +46,8 @@
   $("askSug").innerHTML=SUGG[scope.scope].map(t=>`<button class="chip3" data-q="${esc(t)}">${esc(t)}</button>`).join("");
   if(scope.scope!=="general")jget("/api/chat/tips?scope="+scope.scope+"&id="+encodeURIComponent(scope.id)).then(r=>{const box=$("askSug");if(!box||!r||!(r.tips||[]).length)return;r.tips.slice().reverse().forEach(t=>{const b=document.createElement("button");b.className="chip3 tip";b.textContent="Tip: "+t.t+". Fix it?";b.onclick=()=>send(t.q);box.prepend(b)})}).catch(()=>{});
   const wire=()=>{log.querySelectorAll("[data-tag]").forEach(b=>b.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(b.dataset.tag);toast("Copied "+b.dataset.tag)});
+   log.querySelectorAll("[data-nav]").forEach(b=>b.onclick=()=>{location.hash=b.dataset.nav;if(fab.classList.contains("on"))fab.click()});
+   log.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>{const [jid,cid,pl]=b.dataset.up.split("/");if(fab.classList.contains("on"))fab.click();try{uploadDialog(jid,+cid,pl)}catch(e){toast("Open the clip card and press Upload")}});
    log.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{const [cat,sub]=b.dataset.go.split("/");location.hash="#/settings";setTimeout(()=>{try{setNav(cat,sub)}catch(e){}},300);if(fab.classList.contains("on"))fab.click()});
    log.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{navigator.clipboard&&navigator.clipboard.writeText(b.parentNode.innerText.replace(/Copy$/,"").trim());toast("Copied")})};
   async function send(text){
