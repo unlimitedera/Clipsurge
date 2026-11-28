@@ -177,6 +177,7 @@ def do_length(j, s, ids):
         if b - a < 3: out.append(f"Clip **#{cid}**: that would make it shorter than 3 seconds."); continue
         if b - a > 180: out.append(f"Clip **#{cid}**: that is longer than 3 minutes, which is too long for a short."); continue
         _save(jid, cid, lambda cc, a_=a, b_=b: cc.update(start=round(a_, 2), end=round(b_, 2)), render=True); todo.append(cid)
+        from . import agent; agent.learn("len", b - a)
         out.append(f"Clip **#{cid}**: now {mmss(a)} to {mmss(b)} ({int(b - a)} s).")
     _rerender(jid, todo)
     return "\n".join(out) + ("\n\nRe-rendering it now." if todo else "")
@@ -199,6 +200,8 @@ def do_captions(j, s, ids):
             if per: cp["per"] = max(1, min(6, int(per.group(1)))); ch.append(f"{cp['per']} words per line")
             if upper: cp["upper"] = False; ch.append("normal case")
         _save(jid, cid, f, render=True)
+        if style and ch:
+            from . import agent; agent.learn("captions", style)
         if not ch: out.append(f"Clip **#{cid}**: tell me what to change, for example **captions to fire**, **captions at the top**, **bigger captions** or **captions off**."); continue
         todo.append(cid); out.append(f"Clip **#{cid}**: captions set to {', '.join(ch)}.")
     _rerender(jid, todo)
@@ -207,6 +210,7 @@ def do_captions(j, s, ids):
 def do_crop(j, s, ids):
     jid = j["id"]; layout = _kw(s.lower(), LAYOUTS); out = []; todo = []
     if not layout: return "Which crop? Say **stack** (webcam on top), **game** (gameplay only), **fit** (whole screen with blur), **follow** (follow the face), **speaker** (cut to who talks) or **auto**."
+    from . import agent; agent.learn("layout", layout)
     for cid in ids:
         _save(jid, cid, lambda cc: cc.setdefault("edit", {}).__setitem__("layout", layout), render=True); todo.append(cid); out.append(f"Clip **#{cid}**: crop set to **{layout}**.")
     _rerender(jid, todo); return "\n".join(out) + "\n\nRe-rendering now."
@@ -237,6 +241,9 @@ HELP = ("Just tell me in plain words. I can do these, on this video:\n\n"
         "- **Length:** *make clip 5 shorter by 5 seconds*, *make clip 5 longer by 10 seconds*, *trim clip 5 to 0:30-0:50*, *clip 5 starts at 0:12*.\n"
         "- **Captions:** *captions of clip 5 to fire*, *captions at the top*, *bigger captions*, *captions off*.\n"
         "- **Crop:** *set the crop of clip 5 to whole screen* (stack, game, fit, follow, speaker, auto).\n"
+        "- **Several at once:** *clip 12:30 to 13:00, rename it to Funny moment and add tags #gta to it*. **Undo:** *undo* takes back my last change, even a deleted or added clip.\n"
+        "- **Whole project:** open the project chat and say *add tags #gaming to every clip in this project* or *captions fire for all clips*.\n"
+        "- **Memory:** *remember that I like short punchy titles*, *what do you remember about me*, *forget my preferences*. I also learn your usual crop, captions and clip length.\n"
         "- **Other:** *turn on narration for clip 5*, *hide the bad language in clip 5*, *re-render clip 5*, *what is clip 5*, *delete clip 5*.\n\n"
         "Say *it* or *that clip* for the clip I just worked on, or *all clips* for every clip. For ideas, tags and score advice just ask me normally.")
 HOW = _re.compile(r"\b(how (do|can|to|would|does)|why|explain|tell me how)\b", _re.I)

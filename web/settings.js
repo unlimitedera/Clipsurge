@@ -54,6 +54,7 @@ function renderSettings(){
 
  <div class="card sec" data-cat="ai" data-sub="web" data-t="Internet access SurgeAI web trending tags search online"><h3>Internet access for SurgeAI</h3>
   <label class="chk"><input type="checkbox" id="sa_web" ${(S.surgeai||{}).web===true?"checked":""}><span>Let SurgeAI use the internet <small class="mu">Off by default. When on, SurgeAI can look up trending tags, what people search for, popular videos on your topic, web search results and pages you paste. Only the search words and the links you paste are sent. Your videos, files and account data never leave your computer.</small></span></label>
+  <label>Search API key (optional) <input type="password" id="sa_key" value="${(S.surgeai||{}).search_key||""}" placeholder="Brave Search API key" autocomplete="off"><small class="mu">Web search results are much better with a key. Get a free one at brave.com/search/api. It stays on this computer. Without a key I use a basic search that can be off-topic.</small></label>
  </div>
  <div class="card sec" data-cat="clip" data-sub="censor" data-t="Bad language curse swear words censor profanity narration captions stars"><h3>Bad language</h3>
   <label class="chk"><input type="checkbox" id="c_on" ${(S.censor||{}).enabled?"checked":""}><span>Hide curse words <small class="mu">Captions show the first letter and stars (F***). The title narrator says only the first part of the word. Each project, video and clip can override this.</small></span></label>
@@ -221,7 +222,7 @@ async function saveSettings(){
   transcribe:{model:v("t_model"),language:v("t_language")||"auto",device:v("t_device")},
   video:{encoder:v("v_encoder"),lufs:+v("v_lufs"),caption_size:+v("v_caption_size"),max_height:+v("v_max_height")},
   narration:{enabled:c("n_enabled"),title_caption:c("n_caption"),voice:v("n_voice"),volume:+v("n_volume")||1},
-  surgeai:{web:c("sa_web")},censor:{enabled:c("c_on"),words:v("c_words")},youtube:{privacy:v("y_privacy"),smart_tags:c("y_smart"),learn:c("y_learn")},obs:{host:v("o_host"),port:+v("o_port"),password:v("o_password")}};
+  surgeai:{web:c("sa_web"),search_key:v("sa_key")},censor:{enabled:c("c_on"),words:v("c_words")},youtube:{privacy:v("y_privacy"),smart_tags:c("y_smart"),learn:c("y_learn")},obs:{host:v("o_host"),port:+v("o_port"),password:v("o_password")}};
  const r=await fetch("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
  const m=document.getElementById("savemsg");
  if(r.ok){const j=await r.json();S=j.settings;m.textContent="Saved";applyDefaults();refreshStatus&&refreshStatus();setTimeout(()=>m.textContent="",2500)}else m.textContent="Could not save"}

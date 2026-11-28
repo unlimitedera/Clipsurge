@@ -11,6 +11,12 @@ def _get(url, timeout=10, limit=400000):
     r = urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout)
     return r.read(limit).decode("utf-8", "replace")
 
+def _search_key():
+    try:
+        from . import settings
+        return (settings.get().get("surgeai", {}).get("search_key") or "").strip()
+    except Exception: return ""
+
 def enabled():
     try:
         from . import settings
@@ -27,6 +33,15 @@ def search(q, n=5):
     """General web search through Bing's plain page, with Google News as a second source."""
     import base64
     out = []
+    key = _search_key()
+    if key:                                                        # a real search API gives far better results than scraping
+        try:
+            r = urllib.request.urlopen(urllib.request.Request("https://api.search.brave.com/res/v1/web/search?count=" + str(n) + "&q=" + urllib.parse.quote_plus(q),
+                                       headers={"Accept": "application/json", "X-Subscription-Token": key}), timeout=12)
+            for x in (json.loads(r.read().decode("utf-8", "replace")).get("web") or {}).get("results", [])[:n]:
+                out.append({"title": _html.unescape(re.sub(r"<.*?>", "", x.get("title", ""))), "url": x.get("url", ""), "snippet": _html.unescape(re.sub(r"<.*?>", "", x.get("description", "")))[:240]})
+        except Exception: pass
+        if out: return out
     try:
         h = _get("https://www.bing.com/search?q=" + urllib.parse.quote_plus(q) + "&setlang=en&cc=US&mkt=en-US", 12)
         cl = lambda x: _html.unescape(re.sub(r"<.*?>", "", x)).strip()

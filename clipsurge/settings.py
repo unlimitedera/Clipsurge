@@ -22,7 +22,7 @@ DEFAULTS = {
     },
     "narration": {"enabled": False, "voice": "auto", "volume": 1.0, "title_caption": False},
     "censor": {"enabled": False, "words": ""},
-    "surgeai": {"web": False},
+    "surgeai": {"web": False, "search_key": ""},
     "youtube": {"privacy": "private", "smart_tags": True, "learn": True},
     "obs": {"host": "localhost", "port": 4455, "password": ""},
 }
@@ -53,6 +53,7 @@ def save(new):
             p["api_key"] = old[p["id"]]["api_key"]
     if new.get("obs", {}).get("password") == MASK:
         new["obs"]["password"] = cur["obs"]["password"]
+    if new.get("surgeai", {}).get("search_key") == MASK: new["surgeai"]["search_key"] = cur.get("surgeai", {}).get("search_key", "")
     merged = _merge(cur, new)
     with _lock:
         FILE.write_text(json.dumps(merged, indent=1), "utf-8")
@@ -66,4 +67,5 @@ def public():
         p["api_key"] = MASK if p.get("api_key") else ""
     if s["obs"]["password"]:
         s["obs"]["password"] = MASK
+    if s.get("surgeai", {}).get("search_key"): s["surgeai"]["search_key"] = MASK
     return s

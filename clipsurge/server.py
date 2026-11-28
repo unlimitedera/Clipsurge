@@ -586,6 +586,11 @@ class ChatIn(BaseModel):
     clip: int | None = None         # optional clip to focus on
     messages: list[dict]
 
+@app.get("/api/chat/tips")
+def chat_tips(scope: str, id: str):
+    from . import agent
+    return {"tips": agent.tips(scope, id)}
+
 @app.post("/api/chat")
 def chat(b: ChatIn):
     """Ask the connected AI model about a project or video. Streams plain text."""

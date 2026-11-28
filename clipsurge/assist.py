@@ -126,7 +126,7 @@ def _secs(m, s): return int(m) * 60 + int(s)
 def parse_clip_command(text, n_list):
     """Returns None (not a command) or a dict: {"nums": [..]} to pick from the list, or {"range": (s, e)} for typed times."""
     s = (text or "").lower().strip()
-    if HOWQ.search(s) or not _re.search(r"\b(clip|add|make|cut|grab|create|render|save)\b", s): return None
+    if HOWQ.search(s) or not _re.match(r"^\W*(?:(?:ok(?:ay)?|so|now|please|pls|can you|could you|would you|and|then|also|just|go ahead and|i want you to|i want to|i would like you to|let'?s|hey)[\s,]+)*(?:clip|add|make|cut|grab|create|render|save)\b", s): return None
     ph = phrase_of(text)
     if ph and not _re.search(TIME, s): return {"phrase": ph}
     rng = _re.search(TIME + r"\s*(?:-|to|until|till|through|and)\s*" + TIME, s)
@@ -191,7 +191,8 @@ def find_phrase(j, phrase, limit=3):
         if all(abs(tm - b["at"]) > 20 for b in best): best.append({"cov": cov, "at": tm})
         if len(best) >= limit: break
     st = j.get("settings") or {}
-    L = max(15, min(45, int(((st.get("minlen") or 20) + (st.get("maxlen") or 55)) / 2)))
+    from . import agent
+    L = agent.pref_len() or max(15, min(45, int(((st.get("minlen") or 20) + (st.get("maxlen") or 55)) / 2)))
     dur = float((j.get("info") or {}).get("duration") or 0)
     segs = tr.get("segments") or []
     out = []
@@ -354,12 +355,17 @@ def do_clip(j, cmd):
         if bad: return f"My list only has {len(lst)} moment{'s' if len(lst) != 1 else ''}, so number {bad[0]} does not exist. Ask me **which moments did I miss** to see it again."
         for n in cmd["nums"]: todo.append((lst[n - 1]["s"], lst[n - 1]["e"], lst[n - 1]["txt"]))
     ids = []
+    from . import agent
+    pe = {}
+    if agent.top("layout"): pe["layout"] = agent.top("layout")
+    if agent.top("captions"): pe["captions"] = {"style": agent.top("captions")}
+    if pe: note += "(using your usual " + ", ".join(([agent.NAMES["layout"].get(pe["layout"], pe["layout"]) + " crop"] if "layout" in pe else []) + ([pe["captions"]["style"] + " captions"] if "captions" in pe else [])) + ") "
     def f(jj):
         i = max([c["id"] for c in jj["clips"]] + [0])
         for a, b, txt, *tt in todo:
             i += 1; ids.append(i)
             jj["clips"].append({"id": i, "start": round(a, 2), "end": round(b, 2), "score": 0, "title": _auto_title(tt[0] if tt and tt[0] else txt) if txt else "Custom clip",
-                                "tags": [], "text": txt, "approved": True, "status": "queued", "idea": "added by SurgeAI"})
+                                "tags": [], "text": txt, "approved": True, "status": "queued", "idea": "added by SurgeAI", **({"edit": pe} if pe else {})})
     jobs.update(jid, f)
     jobs.rerender(jid, ids)
     LAST.put(jid, last=ids[-1])
@@ -379,6 +385,26 @@ def proj_title(pid):
         return (projects.get(pid) or {}).get("name")
     except Exception: return None
 
+def video_command(j, sid, last):
+    """One request about a video's clips. Returns the reply, or None when it is not a command."""
+    from . import actions
+    if not _re.search(r"\b(rename|retitle|delete|remove (?:the )?clip|get rid of)\b", last, _re.I):
+        er = actions.handle(j, last, LAST.st(sid).get("last"))
+        if er:
+            LAST.log(sid, "did: " + last[:60]); return er
+    er = existing_command(j, last)
+    if er: return er
+    if PHRASEQ.search(last) and not _re.search(r"\b(clip|make|cut|add|grab)\b", last, _re.I):
+        ph = phrase_of(last)
+        if ph:
+            hits = find_phrase(j, ph)
+            if not hits: return f"I could not find \"{ph[:80]}\" in the transcript."
+            LAST[sid] = [{"s": h["s"], "e": h["e"], "txt": h["txt"]} for h in hits]
+            return ("He says it at " if len(hits) == 1 else "I found it in several places:\n") + "\n".join(f"- **{_mmss(h['at'])}**: \"{h['txt'][:140].strip()}\"" for h in hits) + "\n\nWant me to make a clip? Say **clip number 1**."
+    cmd = parse_clip_command(last, len(LAST.get(sid) or []) or 8)
+    if cmd: return do_clip(j, cmd)
+    return None
+
 def answer(scope, sid, focus, messages):
     """Generator of the reply text. Retries once when a small model refuses, and answers 'did I miss moments?' from the data."""
     from . import llm
@@ -387,36 +413,23 @@ def answer(scope, sid, focus, messages):
     if scope == "video":
         try: j = jobs.load(sid)
         except Exception: j = None
+    from . import agent
     if j is not None:
         try: j = jobs.load(sid)
         except Exception: pass
-        try:
-            from . import actions
-            er = actions.handle(j, last, LAST.st(sid).get("last")) if not _re.search(r"\b(rename|retitle|delete|remove (?:the )?clip|get rid of)\b", last, _re.I) else None
-            if er: LAST.log(sid, "did: " + last[:60]); st_ = [c["id"] for c in j["clips"]]
-        except Exception as e: er = f"I could not do that ({type(e).__name__}: {str(e)[:120]})."
-        if er: yield er; return
-        try: er = existing_command(j, last)
-        except Exception as e: er = f"I could not do that ({type(e).__name__}: {str(e)[:100]})."
-        if er: yield er; return
-    if j is not None and PHRASEQ.search(last) and not _re.search(r"\b(clip|make|cut|add|grab)\b", last, _re.I):
-        ph = phrase_of(last)
-        if ph:
-            hits = find_phrase(j, ph)
-            if not hits: yield f"I could not find \"{ph[:80]}\" in the transcript."
-            else:
-                LAST[sid] = [{"s": h["s"], "e": h["e"], "txt": h["txt"]} for h in hits]
-                yield ("He says it at " if len(hits) == 1 else "I found it in several places:\n") + "\n".join(f"- **{_mmss(h['at'])}**: \"{h['txt'][:140].strip()}\"" for h in hits) + "\n\nWant me to make a clip? Say **clip number 1**."
-            return
-    if j is not None:
-        cmd = parse_clip_command(last, len(LAST.get(sid) or []) or 8)
-        if cmd:
-            try: yield do_clip(j, cmd)
-            except Exception as e: yield f"I could not make the clip ({type(e).__name__}: {str(e)[:120]})."
-            return
+        try: r0 = agent.handle_video(j, sid, last)
+        except Exception as e: r0 = f"I could not do that ({type(e).__name__}: {str(e)[:120]})."
+        if r0 is not None: yield r0; return
+    elif scope == "project":
+        try: r0 = agent.handle_project(sid, last)
+        except Exception as e: r0 = f"I could not do that ({type(e).__name__}: {str(e)[:120]})."
+        if r0 is not None: yield r0; return
+    elif scope == "general":
+        mc = agent.memory_command(last)
+        if mc: yield mc; return
     if j is not None and _re.search(r"\b(renam\w*|retitl\w*|delete|remove|trim|shorten|lengthen|re-?render|add tags?|set the crop)\b", last, _re.I) and not HOWQ.search(last):
         yield "I did not catch exactly what to change, so I changed nothing. Try for example **rename clip 20 to My title**, **delete clip 20**, or ask **what can you do?**"; return
-    sysmsg = build(scope, sid, focus)
+    sysmsg = build(scope, sid, focus) + agent.prefs_text()
     sources = []
     from . import web as _web
     if not _web.enabled() and NEEDNET.search(last) and not _re.search(r"\b(how (do|can|to)|where (is|do) (i|the))\b", last, _re.I):
