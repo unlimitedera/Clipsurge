@@ -96,6 +96,22 @@ class RunIn(BaseModel):
     path: str
     ctx: int = 8192
 
+class ImportIn(BaseModel):
+    kind: str          # gguf | folder | speech
+    path: str
+
+@app.post("/api/models/import")
+def api_import(b: ImportIn):
+    try:
+        if b.kind == "gguf": r = models.import_gguf(b.path); return {"added": [Path(b.path).name] if r["new"] else [], "skipped": [] if r["new"] else [Path(b.path).name]}
+        if b.kind == "folder": return models.import_folder(b.path)
+        if b.kind == "speech": r = models.import_speech(b.path); return {"added": [r["id"]] if r["new"] else [], "skipped": [] if r["new"] else [r["id"]]}
+    except Exception as e: raise HTTPException(400, str(e))
+    raise HTTPException(400, "unknown kind")
+
+@app.get("/api/models/import/suggest")
+def api_import_suggest(): return {"folders": models.suggest_folders()}
+
 @app.post("/api/models/local/run")
 def api_run(r: RunIn):
     try: return models.run_local(r.path, r.ctx)

@@ -109,7 +109,10 @@ def speech_installed(repo):
     return False
 
 def speech_repo(name):
-    return _SP[name][1] if name in _SP else name        # custom Hugging Face repo id
+    if name in _SP: return _SP[name][1]
+    for e in _reg().get("speech", []):
+        if e["id"] == name: return e["path"]            # an imported local folder
+    return name                                        # custom Hugging Face repo id
 
 def speech_catalog():
     sel = settings.get()["transcribe"]["model"]
@@ -120,9 +123,17 @@ def speech_catalog():
         out.append({"id": i, "repo": repo, "size": size, "vram_int8": v8, "vram_fp16": v16, "speed": sp, "accuracy": ac, "note": note,
                     "installed": speech_installed(repo), "selected": sel == i,
                     "fits": "gpu" if vb >= v8 else ("cpu" if hw["ram_free"] > size * 3 else "no")})
+    for e, p, gb in _custom_speech():
+        v8 = gb + 0.4; v16 = gb * 1.6 + 0.6
+        out.append({"id": e["id"], "repo": e["path"], "size": gb, "vram_int8": v8, "vram_fp16": v16, "speed": 0, "accuracy": 0, "note": "Imported from your PC. Files stay where they are.",
+                    "installed": (p / "model.bin").exists(), "selected": sel == e["id"], "custom": True, "path": e["path"],
+                    "fits": "gpu" if vb >= v8 else ("cpu" if hw["ram_free"] > gb * 3 else "no")})
     return {"models": out, "selected": sel, "auto_choice": choose_whisper(None)[0]}
 
 def delete_speech(name):
+    reg = _reg()
+    if any(e["id"] == name for e in reg.get("speech", [])):        # imported: forget it, never delete the user's folder
+        reg["speech"] = [e for e in reg["speech"] if e["id"] != name]; _reg_save(reg); return
     shutil.rmtree(_repo_dir(speech_repo(name)), ignore_errors=True)
 
 def download_speech(name):
@@ -164,6 +175,8 @@ def whisper_plan(name, lang=None):
         name, _ = choose_whisper(lang)
     sp = _SP.get(name)
     v8, v16 = sp[3] if sp else (3.0, 5.0)
+    for e, p_, gb in _custom_speech():
+        if e["id"] == name and gb: v8, v16 = gb + 0.4, gb * 1.6 + 0.6
     dev = ts.get("device", "auto")
     threads = max(2, min(hw["cores"], 8))
     if dev != "cpu" and hw["vram_total"] and vb >= v8:
@@ -221,15 +234,102 @@ def download_gguf(repo, file):
     return key
 
 def local_models():
-    out = []
+    out = []; seen = set()
     for p in LLM_DIR.rglob("*.gguf"):
-        out.append({"path": str(p).replace("\\", "/"), "name": p.name, "repo": p.parent.name.replace("__", "/"), "size": p.stat().st_size})
+        k = str(p).replace("\\", "/"); seen.add(k.lower())
+        out.append({"path": k, "name": p.name, "repo": p.parent.name.replace("__", "/"), "size": p.stat().st_size})
+    for e in _reg().get("llm", []):                              # models the user imported from anywhere on this PC
+        k = e["path"]
+        if k.lower() in seen: continue
+        seen.add(k.lower()); p = Path(k); ok = p.is_file()
+        out.append({"path": k, "name": p.name, "repo": "Imported", "size": p.stat().st_size if ok else 0, "imported": True, "missing": not ok})
     return sorted(out, key=lambda x: x["name"].lower())
 
 def delete_gguf(path):
+    k = str(path).replace("\\", "/")
+    reg = _reg()
+    if any(e["path"].lower() == k.lower() for e in reg.get("llm", [])):          # imported: forget it, never delete the user's file
+        reg["llm"] = [e for e in reg["llm"] if e["path"].lower() != k.lower()]; _reg_save(reg)
+        if _proc.get("file") and str(_proc["file"]).replace("\\", "/").lower() == k.lower(): stop_local()
+        return
     p = Path(path).resolve()
     if LLM_DIR.resolve() in p.parents and p.suffix == ".gguf":
         stop_local(); p.unlink(missing_ok=True)
+
+# ============================== models the user already has ==============================
+REGF = DATA / "imported_models.json"
+
+def _reg():
+    try: return json.loads(REGF.read_text("utf-8"))
+    except Exception: return {"llm": [], "speech": []}
+
+def _reg_save(r): REGF.write_text(json.dumps(r, indent=1), "utf-8")
+
+def _is_main_gguf(name):
+    n = name.lower()
+    if not n.endswith(".gguf") or "mmproj" in n: return False
+    return "-00001-of-" in n or not re.search(r"-\d{5}-of-\d{5}", n)      # split models: only the first part is loaded, it finds the rest
+
+def import_gguf(path):
+    """Register a GGUF file that lives anywhere on this PC. The file stays where it is."""
+    p = Path(path)
+    if not p.is_file() or p.suffix.lower() != ".gguf": raise ValueError("Choose a .gguf model file.")
+    if "mmproj" in p.name.lower(): raise ValueError("That is a vision helper file, not a model. Import the main model file instead.")
+    try: gguf_info(str(p))
+    except Exception: raise ValueError("That file is not a valid GGUF model.")
+    k = str(p.resolve()).replace("\\", "/"); reg = _reg()
+    if any(e["path"].lower() == k.lower() for e in reg["llm"]) or LLM_DIR.resolve() in p.resolve().parents: return {"path": k, "new": False}
+    reg["llm"].append({"path": k, "name": p.name, "added": time.time()}); _reg_save(reg)
+    return {"path": k, "new": True}
+
+def scan_models(folder, limit=300):
+    """Every GGUF model in a folder and its subfolders."""
+    f = Path(folder)
+    if not f.is_dir(): raise ValueError("That folder does not exist.")
+    found = []
+    for p in f.rglob("*.gguf"):
+        if _is_main_gguf(p.name): found.append(p)
+        if len(found) >= limit: break
+    return found
+
+def import_folder(folder):
+    added, skipped = [], []
+    for p in scan_models(folder):
+        try: r = import_gguf(str(p)); (added if r["new"] else skipped).append(p.name)
+        except Exception as e: skipped.append(f"{p.name} ({e})")
+    return {"added": added, "skipped": skipped}
+
+def suggest_folders():
+    home = Path.home(); out = []
+    for label, c in (("LM Studio", home / ".lmstudio" / "models"), ("LM Studio", home / ".cache" / "lm-studio" / "models"), ("Jan", home / "jan" / "models"),
+                     ("GPT4All", Path(os.environ.get("LOCALAPPDATA", "")) / "nomic.ai" / "GPT4All"), ("Downloads", home / "Downloads")):
+        try:
+            if c.is_dir():
+                n = len(scan_models(c, 60))
+                if n: out.append({"name": label, "path": str(c).replace("\\", "/"), "count": n})
+        except Exception: pass
+    return out
+
+def import_speech(folder):
+    """A faster-whisper (CTranslate2) model folder: model.bin plus config.json and a tokenizer."""
+    f = Path(folder)
+    if not f.is_dir(): raise ValueError("Choose the model's folder.")
+    if not (f / "model.bin").exists():
+        if (f / "pytorch_model.bin").exists() or list(f.glob("*.safetensors")): raise ValueError("That is a standard Whisper model. Clipsurge needs the faster-whisper (CTranslate2) version, which has a model.bin file.")
+        raise ValueError("No model.bin in that folder. Pick the folder of a faster-whisper model.")
+    if not (f / "config.json").exists() or not ((f / "tokenizer.json").exists() or (f / "vocabulary.json").exists() or (f / "vocabulary.txt").exists()):
+        raise ValueError("The folder is missing config.json or the tokenizer files.")
+    reg = _reg(); k = str(f.resolve()).replace("\\", "/"); mid = "custom:" + f.name
+    if any(e["path"].lower() == k.lower() for e in reg["speech"]): return {"id": next(e["id"] for e in reg["speech"] if e["path"].lower() == k.lower()), "new": False}
+    n = 2; base = mid
+    while any(e["id"] == mid for e in reg["speech"]): mid = f"{base}-{n}"; n += 1
+    reg["speech"].append({"id": mid, "path": k, "added": time.time()}); _reg_save(reg)
+    return {"id": mid, "new": True}
+
+def _custom_speech():
+    for e in _reg().get("speech", []):
+        p = Path(e["path"]); gb = (p / "model.bin").stat().st_size / 1024 ** 3 if (p / "model.bin").exists() else 0
+        yield e, p, gb
 
 # ============================== GGUF header + memory planner ==============================
 def gguf_info(path):

@@ -31,7 +31,7 @@ def listdir(path, kind="video"):
                         continue
                     if e.is_dir(follow_symlinks=False):
                         dirs.append({"name": e.name, "path": e.path.replace("\\", "/")})
-                    elif Path(e.name).suffix.lower() in (AUDIO_EXT if kind == "audio" else VIDEO_EXT):
+                    elif Path(e.name).suffix.lower() in {"audio": AUDIO_EXT, "gguf": {".gguf"}, "folder": set()}.get(kind, VIDEO_EXT):
                         st = e.stat()
                         files.append({"name": e.name, "path": e.path.replace("\\", "/"),
                                       "size": st.st_size, "mtime": st.st_mtime})

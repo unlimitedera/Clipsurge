@@ -8,13 +8,23 @@ async function renderModelHub(){
  const host=$("modelHub");if(!host)return;
  host.innerHTML=`<div class="card"><h3>Hardware and memory</h3><div id="mhHw"></div></div>
   <div class="card"><h3>Speech models</h3><p class="mu small">Used to turn speech into captions. Pick one, or leave it on Auto and Clipsurge chooses the best model that fits your free memory.</p><div id="mhSpeech"></div>
-   <div class="row" style="justify-content:flex-start;gap:8px;margin-top:12px"><input type="text" id="mhCustom" placeholder="Other Hugging Face repo, e.g. org/faster-whisper-name" style="flex:1"><button class="g sm" id="mhCustomUse">Use this repo</button></div></div>
+   <div class="row" style="justify-content:flex-start;gap:8px;margin-top:12px"><input type="text" id="mhCustom" placeholder="Other Hugging Face repo, e.g. org/faster-whisper-name" style="flex:1"><button class="g sm" id="mhCustomUse">Use this repo</button></div>
+   <div class="row" style="justify-content:flex-start;gap:8px;margin-top:8px"><button class="g sm" id="mhImpSpeech">Import a speech model folder...</button><span class="mu small">A faster-whisper (CTranslate2) folder with model.bin. It stays where it is.</span></div></div>
   <div class="card"><h3>Local AI models</h3><p class="mu small">Run a language model on this PC for rating moments and writing titles. Free models come from Hugging Face. Clipsurge sizes the model to your memory and connects it for you.</p>
    <div id="mhRuntime"></div><div id="mhRun"></div>
    <div class="row" style="justify-content:flex-start;gap:8px;margin:14px 0 8px"><input type="text" id="mhQ" placeholder="Search Hugging Face for GGUF models (qwen, llama, gemma...)" style="flex:1"><button class="g sm" id="mhSearch">${ico("search",13)}<span>Search</span></button></div>
    <div id="mhHits"></div><div id="mhFiles"></div>
-   <h3 style="margin-top:18px">Downloaded</h3><div id="mhLocal"></div></div>`;
+   <div class="mimp" style="margin-top:14px"><b>Use a model you already have</b><div class="row" style="justify-content:flex-start;gap:8px;flex-wrap:wrap;margin:8px 0"><button class="sm" id="mhImpFile">Import a model file...</button><button class="g sm" id="mhImpDir">Scan a folder...</button></div>
+    <div class="mu small">Pick a .gguf file, or a folder to find every model in it (for example from LM Studio). The files stay where they are and are never copied or deleted.</div><div id="mhImpSug" style="margin-top:8px"></div></div>
+   <h3 style="margin-top:18px">Downloaded and imported</h3><div id="mhLocal"></div></div>`;
  $("mhSearch").onclick=()=>mhSearch($("mhQ").value);$("mhQ").onkeydown=e=>{if(e.key=="Enter")mhSearch(e.target.value)};
+ const imp=async(kind,path)=>{const r=await post("/api/models/import",{kind,path});let d={};try{d=await r.json()}catch(e){}if(!r.ok){toast(d.detail||"Could not import that","err");return}
+  const a=(d.added||[]).length,s=(d.skipped||[]).length;toast(a?`Imported ${a} model${a>1?"s":""}`:s?"Already in your list":"No models found there",a?"":"err");mhLoad();mhSug()};
+ $("mhImpFile").onclick=async()=>{const r=await pickFiles({kind:"gguf",multi:false,title:"Choose a GGUF model file",okLabel:"Import"});if(r&&r[0])imp("gguf",r[0])};
+ $("mhImpDir").onclick=async()=>{const p=await pickFolder({title:"Choose a folder to scan for GGUF models",okLabel:"Scan this folder"});if(p)imp("folder",p)};
+ $("mhImpSpeech").onclick=async()=>{const p=await pickFolder({title:"Choose a faster-whisper model folder",okLabel:"Import this folder"});if(p)imp("speech",p)};
+ const mhSug=async()=>{try{const d=await jget("/api/models/import/suggest");const el=$("mhImpSug");if(!el)return;el.innerHTML=(d.folders||[]).map(f=>`<button class="chip3" data-imp="${esc(f.path)}">Found ${f.count} model${f.count>1?"s":""} in ${esc(f.name)}: import all</button>`).join(" ");el.querySelectorAll("[data-imp]").forEach(b=>b.onclick=()=>imp("folder",b.dataset.imp))}catch(e){}};
+ mhSug();
  $("mhCustomUse").onclick=async()=>{const v=$("mhCustom").value.trim();if(!v)return;await setSetting({transcribe:{model:v}});toast("Speech model set");mhLoad()};
  await mhLoad();mhSearch("");mhTick();}
 
@@ -54,13 +64,13 @@ function drawSpeech(){
  const sel=S.selected;
  el.innerHTML=`<div class="mrow ${sel=="auto"?"on":""}"><div class="mmain"><b>Auto</b><span class="mu small">Picks <b class="lime">${esc(S.auto_choice)}</b> right now for your free memory</span></div><div class="mact"><button class="g sm ${sel=="auto"?"on":""}" data-use="auto">${sel=="auto"?"In use":"Use"}</button></div></div>`+
  S.models.map(m=>{const k="speech:"+m.id;return `<div class="mrow ${m.selected?"on":""}" data-k="${k}"><div class="mmain"><b>${esc(m.id)}</b><span class="mu small">${esc(m.note)}</span>
-  <span class="mono small mu">${gbf(m.size)} download · needs ${m.vram_int8.toFixed(1)}–${m.vram_fp16.toFixed(1)} GB video memory</span><div class="dlbar hide"><div class="bar"><b style="width:0%"></b></div><span class="dlt mono small"></span></div></div>
-  <div class="mscore mono" title="Speed / accuracy"><span>speed ${dots(m.speed)}</span><span>accuracy ${dots(m.accuracy)}</span></div>
+  <span class="mono small mu">${m.custom?esc(m.path)+" · ":gbf(m.size)+" download · "}needs about ${m.vram_int8.toFixed(1)}–${m.vram_fp16.toFixed(1)} GB video memory</span><div class="dlbar hide"><div class="bar"><b style="width:0%"></b></div><span class="dlt mono small"></span></div></div>
+  <div class="mscore mono" title="Speed / accuracy">${m.custom?'<span class="chip">Imported</span>':`<span>speed ${dots(m.speed)}</span><span>accuracy ${dots(m.accuracy)}</span>`}</div>
   <div class="mact">${m.installed?`<span class="chip idea">Installed</span>`:`<span class="chip">Not installed</span>`}
    ${m.installed?`<button class="g sm" data-use="${m.id}">${m.selected?"In use":"Use"}</button><button class="g sm danger" data-sdel="${m.id}" title="Delete files" aria-label="Delete ${m.id}">${ico("trash",13)}</button>`:`<button class="sm" data-sdl="${m.id}">${withIco("download","Download",13)}</button><button class="g sm" data-use="${m.id}" title="Downloads automatically on first use">Use</button>`}</div></div>`}).join("");
  el.querySelectorAll("[data-use]").forEach(b=>b.onclick=async()=>{if(await setSetting({transcribe:{model:b.dataset.use}})){toast("Speech model: "+b.dataset.use);mhLoad()}});
  el.querySelectorAll("[data-sdl]").forEach(b=>b.onclick=async()=>{await post("/api/models/download",{kind:"speech",name:b.dataset.sdl});mhTick()});
- el.querySelectorAll("[data-sdel]").forEach(b=>b.onclick=async()=>{if(await confirmBox("Delete speech model",`Delete ${b.dataset.sdel} from this PC? You can download it again later.`,"Delete")){await post("/api/models/speech/delete",{kind:"speech",name:b.dataset.sdel});mhLoad()}});
+ el.querySelectorAll("[data-sdel]").forEach(b=>b.onclick=async()=>{if(await confirmBox(b.dataset.sdel.startsWith("custom:")?"Remove speech model":"Delete speech model",b.dataset.sdel.startsWith("custom:")?"Remove it from the list? The folder stays on your PC.":`Delete ${b.dataset.sdel} from this PC? You can download it again later.`,b.dataset.sdel.startsWith("custom:")?"Remove":"Delete")){await post("/api/models/speech/delete",{kind:"speech",name:b.dataset.sdel});mhLoad()}});
  paintDl()}
 
 /* ---------- local LLMs ---------- */
@@ -72,11 +82,11 @@ function drawLocal(){
  const b=$("mhRt");if(b)b.onclick=async()=>{await post("/api/models/download",{kind:"runtime"});mhTick()};
  $("mhRun").innerHTML=st.running?`<div class="mrow on"><div class="mmain"><b>${esc((st.file||"").split("/").pop().replace(".gguf",""))}</b><span class="mu small">${st.ready?"Running and connected as “Clipsurge local model”":"Loading the model..."}</span>${st.plan?`<span class="mono small mu">${esc(st.plan.description)} · context ${st.plan.ctx} · ${st.plan.threads} threads</span>`:""}</div><div class="mact"><button class="g sm danger" id="mhStop">${withIco("stop","Stop",13)}</button></div></div>`:"";
  const sb=$("mhStop");if(sb)sb.onclick=async()=>{await post("/api/models/local/stop");mhLoad()};
- el.innerHTML=L.models.length?L.models.map(m=>`<div class="mrow" data-path="${esc(m.path)}"><div class="mmain"><b>${esc(m.name)}</b><span class="mu small">${esc(m.repo)} · ${gbf(m.size/1024**3)}</span><span class="mono small mu" data-plan>Checking memory...</span></div>
-  <div class="mact"><button class="sm" data-run="${esc(m.path)}" ${st.runtime?"":"disabled title='Install the runtime first'"}>${withIco("play","Run",13)}</button><button class="g sm danger" data-ldel="${esc(m.path)}" aria-label="Delete model">${ico("trash",13)}</button></div></div>`).join(""):`<div class="mu small">Nothing downloaded yet.</div>`;
+ el.innerHTML=L.models.length?L.models.map(m=>`<div class="mrow" data-path="${esc(m.path)}"><div class="mmain"><b>${esc(m.name)}</b><span class="mu small">${m.imported?'<span class="chip">Imported</span> ':""}${m.missing?'<span style="color:var(--red)">File not found. Remove it from the list.</span>':(m.imported?"":esc(m.repo)+" · ")+gbf(m.size/1024**3)}</span>${m.imported?`<span class="mono small mu">${esc(m.path)}</span>`:""}<span class="mono small mu" data-plan>${m.missing?"":"Checking memory..."}</span></div>
+  <div class="mact"><button class="sm" data-run="${esc(m.path)}" ${st.runtime&&!m.missing?"":"disabled title='Install the runtime first'"}>${withIco("play","Run",13)}</button><button class="g sm danger" data-ldel="${esc(m.path)}" aria-label="${m.imported?"Remove from list":"Delete model"}" title="${m.imported?"Remove from the list (the file is kept)":"Delete the file"}">${ico("trash",13)}</button></div></div>`).join(""):`<div class="mu small">Nothing downloaded yet.</div>`;
  L.models.forEach(m=>jget("/api/models/plan?path="+encodeURIComponent(m.path)).then(p=>{const r=el.querySelector(`[data-path="${CSS.escape(m.path)}"] [data-plan]`);if(r)r.innerHTML=`${esc(p.description)} · context ${p.ctx}${p.ok?"":' · <span style="color:var(--red)">'+esc(p.notes.slice(-1)[0]||"")+"</span>"}`}).catch(()=>{}));
  el.querySelectorAll("[data-run]").forEach(b=>b.onclick=async()=>{b.disabled=true;const r=await post("/api/models/local/run",{path:b.dataset.run});if(!r.ok)toast((await r.json()).detail,"err");else toast("Model is loading. It connects automatically.");b.disabled=false;mhLoad();setTimeout(mhLoad,4000);setTimeout(mhLoad,10000)});
- el.querySelectorAll("[data-ldel]").forEach(b=>b.onclick=async()=>{if(await confirmBox("Delete model","Delete this model file from the PC?","Delete")){await post("/api/models/local/delete",{path:b.dataset.ldel});mhLoad()}});
+ el.querySelectorAll("[data-ldel]").forEach(b=>b.onclick=async()=>{const imported=(MH.local.models.find(x=>x.path==b.dataset.ldel)||{}).imported;if(imported?await confirmBox("Remove model","Remove it from the list? The file stays on your PC.","Remove"):await confirmBox("Delete model","Delete this model file from the PC?","Delete")){await post("/api/models/local/delete",{path:b.dataset.ldel});mhLoad()}});
  paintDl()}
 
 async function mhSearch(q){

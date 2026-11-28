@@ -43,3 +43,28 @@ function pickFiles({kind="video",multi=true,title="Choose files",okLabel="Add"}=
    upd()}
   roots=await jget("/api/fs/roots");side();
   await load(cur||(roots.quick[0]||roots.drives[0]||{path:"C:/"}).path);upd()})}
+
+/* Choose a folder on this PC: resolves to its path, or null. */
+function pickFolder({title="Choose a folder",okLabel="Use this folder"}={}){
+ return new Promise(async res=>{
+  let cur=localStorage.getItem("ct_dir_folder")||"",data=null;
+  const m=modal(`<div class="pk"><div class="pkhead"><h3>${esc(title)}</h3><button class="g sm" data-x>Close</button></div>
+   <div class="pkbody"><nav class="pkside" aria-label="Places"></nav><div class="pkmain"><div class="pkbar"><div class="crumbs"></div></div><div class="pklist" role="list"></div></div></div>
+   <div class="mfoot"><span class="mu" data-n></span><button data-ok>${esc(okLabel)}</button></div></div>`,{wide:true,onClose:()=>res(null)});
+  const q=s=>m.box.querySelector(s);
+  q("[data-x]").onclick=()=>m.close();
+  q("[data-ok]").onclick=()=>{if(!data)return;localStorage.setItem("ct_dir_folder",data.path);res(data.path);m.box.closest(".mbg").remove()};
+  async function load(p){try{data=await jget("/api/fs?kind=folder&path="+encodeURIComponent(p));cur=data.path}catch(e){toast("Cannot open that folder","err");return}draw()}
+  function draw(){
+   const parts=data.path.split("/").filter(Boolean);let acc="";
+   q(".crumbs").innerHTML=parts.map((p,i)=>{acc+=(i==0?"":"/")+p+(i==0?"/":"");return `<button class="cr" data-p="${esc(acc)}">${esc(p)}</button>`}).join('<span class="mu">/</span>');
+   q(".crumbs").querySelectorAll(".cr").forEach(b=>b.onclick=()=>load(b.dataset.p));
+   let h=data.parent?`<button class="row dir" data-p="${esc(data.parent)}"><span class="ic">..</span><span>Up one folder</span></button>`:"";
+   h+=data.dirs.map(d=>`<button class="row dir" data-p="${esc(d.path)}"><span class="ic">&#9656;</span><span>${esc(d.name)}</span></button>`).join("");
+   if(!data.dirs.length)h+='<div class="empty">No folders here.</div>';
+   q(".pklist").innerHTML=h;q(".pklist").querySelectorAll(".dir").forEach(b=>b.onclick=()=>load(b.dataset.p));
+   q("[data-n]").textContent="Selected: "+data.path}
+  const roots=await jget("/api/fs/roots");
+  q(".pkside").innerHTML=`<div class="pkh">Places</div>`+roots.quick.map(r=>`<button class="pl" data-p="${esc(r.path)}">${esc(r.name)}</button>`).join("")+`<div class="pkh">Drives</div>`+roots.drives.map(r=>`<button class="pl" data-p="${esc(r.path)}">${esc(r.name)}</button>`).join("");
+  q(".pkside").querySelectorAll(".pl").forEach(b=>b.onclick=()=>load(b.dataset.p));
+  await load(cur||(roots.quick[0]||roots.drives[0]||{path:"C:/"}).path)})}
